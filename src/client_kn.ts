@@ -1,11 +1,14 @@
 // 浏览器封装：导出 streamQuestion(question)，供页面调用
 import { RoleType, ChatEventType } from '@coze/api';
-import { client, botId, userId } from './client.js';
+import { client, botId, userId } from './client';
 
-export async function streamQuestion(question, options = {}) {
+export async function streamQuestion(
+  question: string,
+  options: Record<string, unknown> = {}
+): Promise<AsyncGenerator<string, void, unknown>> {
   const q = typeof question === 'string' ? question.trim() : '';
   if (!q) throw new Error('Question is required');
-  const stream = await client.chat.stream({
+  const stream: AsyncIterable<any> = await client.chat.stream({
     bot_id: botId,
     user_id: userId,
     additional_messages: [
@@ -19,7 +22,7 @@ export async function streamQuestion(question, options = {}) {
     ...options,
   });
 
-  async function sendCompletedLog(text) {
+  async function sendCompletedLog(text: string): Promise<void> {
     try {
       // 优先使用 sendBeacon，避免浏览器因页面更新或空响应而取消请求
       if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
@@ -40,7 +43,7 @@ export async function streamQuestion(question, options = {}) {
   }
 
   // 仅传递“消息完成”中的纯文本答案；忽略知识回溯等非文本内容
-  async function* onlyCompletedText() {
+  async function* onlyCompletedText(): AsyncGenerator<string, void, unknown> {
     for await (const evt of stream) {
       if (evt?.event !== ChatEventType.CONVERSATION_MESSAGE_COMPLETED) continue;
       const type = evt?.data?.content_type;

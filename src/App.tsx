@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
 import styled from "styled-components";
 import { CopyOutlined } from "@ant-design/icons";
 import { streamQuestion } from "./client_kn";
@@ -230,7 +231,7 @@ const SuggestionChip = styled.button`
 // 流式输出：使用 Coze API 的 stream 接口逐步渲染回答
 // 在 handleConfirm 中驱动状态更新以实现增量显示
 // 兼容不同事件结构并增强错误可观测性
-const extractAssistantText = (event) => {
+const extractAssistantText = (event: any): string | null => {
   // 若封装直接返回字符串（仅完成的纯文本），直接使用
   if (typeof event === "string") {
     return event;
@@ -292,7 +293,7 @@ const extractAssistantText = (event) => {
 };
 
 // 识别是否为推荐问题：单段文本且以问号结尾
-const isRecommendedQuestion = (text) => {
+const isRecommendedQuestion = (text: string): boolean => {
   const t = (text || "").trim();
   if (!t) return false;
   const paragraphs = t.split(/\n{2,}/).filter((p) => p.trim().length > 0);
@@ -301,7 +302,7 @@ const isRecommendedQuestion = (text) => {
 };
 
 // 清理长答末尾的知识回溯后缀（如：^^（recall slice 1、recall slice 2...））
-const cleanRecallSuffix = (text) => {
+const cleanRecallSuffix = (text: string): string => {
   if (!text || typeof text !== "string") return text || "";
   let t = text;
   // 中文括号样式
@@ -312,19 +313,30 @@ const cleanRecallSuffix = (text) => {
 };
 
 // 构建两种提示语
-const buildShortPrompt = (q) => `${q}（3句话以内）`;
-const buildLongPrompt = (q) => `${q}（详细回答）`;
+const buildShortPrompt = (q: string): string => `${q}（3句话以内）`;
+const buildLongPrompt = (q: string): string => `${q}（详细回答）`;
+
+// 统一规范化错误为可打印字符串
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const anyErr = error as { response?: { data?: unknown }; message?: string };
+    const detail = anyErr.response?.data ?? anyErr.message ?? String(error);
+    return typeof detail === "string" ? detail : JSON.stringify(detail);
+  }
+  return String(error);
+};
 
 function App() {
-  const [question, setQuestion] = useState("");
-  const [answers, setAnswers] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [, setHasConfirmed] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const textareaRef = useRef(null);
-  const hasChunkRef = useRef(false);
+  const [question, setQuestion] = useState<string>("");
+  const [answers, setAnswers] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [, setHasConfirmed] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasChunkRef = useRef<boolean>(false);
 
-  const adjustHeight = () => {
+  const adjustHeight = (): void => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
@@ -337,7 +349,7 @@ function App() {
     adjustHeight();
   }, [question]);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
       setIsLoading(true);
       // 新问题开始时清空旧内容
@@ -352,7 +364,7 @@ function App() {
         const shortPrompt = buildShortPrompt(question);
         const stream = await streamQuestion(shortPrompt);
         let longStarted = false;
-        let longPromise = null;
+        let longPromise: Promise<void> | null = null;
 
         // 超时保护：若 25s 内无片段到达，提示失败
         const timeoutId = setTimeout(() => {
@@ -398,9 +410,7 @@ function App() {
                   setAnswers((prev) => [...prev, cleaned]);
                 }
               } catch (error) {
-                const detail =
-                  (error && (error.response?.data || error.message || `${error}`)) ||
-                  "Unknown error";
+                const detail = getErrorMessage(error);
                 console.error("Error calling Coze API (long):", detail);
                 setAnswers((prev) => [...prev, "Error: Failed to get detailed answer"]);
               }
@@ -414,9 +424,7 @@ function App() {
         }
         clearTimeout(timeoutId);
       } catch (error) {
-        const detail =
-          (error && (error.response?.data || error.message || `${error}`)) ||
-          "Unknown error";
+        const detail = getErrorMessage(error);
         console.error("Error calling Coze API:", detail);
         setAnswers((prev) => [...prev, "Error: Failed to get response from bot"]);
       } finally {
@@ -426,18 +434,18 @@ function App() {
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleConfirm();
     }
   };
 
-  const handleInput = (e) => {
+  const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setQuestion(e.target.value);
   };
 
-  const copyTextToClipboard = async (text) => {
+  const copyTextToClipboard = async (text: string): Promise<void> => {
     if (!text || !text.trim()) return;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -463,11 +471,11 @@ function App() {
     }
   };
 
-  const handleCopyIconClick = async (e) => {
+  const handleCopyIconClick = async (e: SyntheticEvent<HTMLDivElement>): Promise<void> => {
     try {
       const parent = e.currentTarget?.parentElement;
-      const textEl = parent?.querySelector?.(".answer-text");
-      const text = (textEl?.innerText || textEl?.textContent || "").trim();
+      const textEl = parent?.querySelector?.(".answer-text") as HTMLElement | null;
+      const text = ((textEl?.innerText ?? textEl?.textContent) ?? "").trim();
       await copyTextToClipboard(text);
     } catch {
       // ignore copy error

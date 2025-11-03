@@ -21,7 +21,7 @@ export const client = new CozeAPI({
 export const botId = import.meta.env.VITE_COZE_BOT_ID;
 
 // 工具函数
-export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 // 用户 ID（用于会话标识），可在 .env 设置 VITE_COZE_USER_ID
 export const userId = import.meta.env.VITE_COZE_USER_ID || "web-user";
