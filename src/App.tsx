@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { CopyOutlined } from "@ant-design/icons";
 import { streamQuestion } from "./client_kn";
 import ReactMarkdown from "react-markdown";
@@ -8,20 +8,62 @@ import remarkGfm from "remark-gfm";
 
 // 样式组件
 const Container = styled.div`
-  width: 360px;
+  width: 380px;
   min-height: 100vh;
   padding: 16px;
   margin-top: 16px;
   background: #f7f7f7;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  border: 1px solid #eee;
+`;
+
+const Header = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+`;
+
+const Brand = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const BrandIcon = styled.div`
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1677ff 0%, #69b1ff 100%);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+`;
+
+const Title = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f1f1f;
+  letter-spacing: 0.2px;
+`;
+
+const SubTitle = styled.div`
+  font-size: 12px;
+  color: #8c8c8c;
 `;
 
 const InputContainer = styled.div`
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(247, 247, 247, 0.9);
+  padding-bottom: 8px;
+  backdrop-filter: saturate(180%) blur(6px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
 `;
 
 const QuestionInput = styled.textarea`
@@ -75,28 +117,81 @@ const QuestionInput = styled.textarea`
 const ConfirmButton = styled.button`
   padding: 0 20px;
   height: 42px;
-  background: #1890ff;
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   color: white;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  align-self: flex-start;
+  line-height: 42px;
+  box-shadow: 0 6px 14px rgba(24, 144, 255, 0.25);
+
+  &:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(24, 144, 255, 0.28);
+  }
+
+  &:active {
+    filter: brightness(0.96);
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    background: #d9d9d9;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+`;
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+const LoadingSpinner = styled.span`
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: ${spin} 0.8s linear infinite;
+  vertical-align: middle;
+`;
+
+const GhostButton = styled.button`
+  padding: 0 14px;
+  height: 42px;
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.25s ease;
   white-space: nowrap;
   align-self: flex-start;
   line-height: 42px;
 
   &:hover {
-    background: #40a9ff;
-    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+    color: #333;
+    border-color: #d9d9d9;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
   }
 
   &:active {
-    background: #096dd9;
+    color: #222;
+    border-color: #c9c9c9;
   }
 
   &:disabled {
-    background: #d9d9d9;
+    color: #bfbfbf;
+    background: #fafafa;
     cursor: not-allowed;
     box-shadow: none;
   }
@@ -127,6 +222,11 @@ const AnswersContainer = styled.div`
   }
 `;
 
+const fadeInUp = keyframes`
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+`;
+
 const AnswerItem = styled.div`
   background: white;
   padding: 14px 16px;
@@ -139,22 +239,83 @@ const AnswerItem = styled.div`
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  border-left: 3px solid #e6f4ff;
+  animation: ${fadeInUp} 0.25s ease;
 
   &:hover {
     border-color: #1890ff;
     box-shadow: 0 4px 12px rgba(24, 144, 255, 0.1);
     transform: translateY(-1px);
+    border-left-color: #1890ff;
   }
 
   .answer-text {
+    flex: 1;
+    margin-right: 16px;
+  }
+
+  .answer-content {
     color: #333;
     font-size: 14px;
     line-height: 1.6;
-    flex: 1;
-    margin-right: 16px;
     padding: 2px 0;
     word-break: break-word;
     white-space: normal;
+    position: relative;
+
+    /* Markdown 样式优化 */
+    h1, h2, h3 {
+      margin: 0.4em 0 0.3em;
+      color: #222;
+    }
+    p { margin: 0.4em 0; }
+    ul, ol { margin: 0.4em 0 0.4em 1.4em; }
+    blockquote {
+      margin: 0.6em 0;
+      padding: 8px 12px;
+      background: #f9fafb;
+      border-left: 4px solid #e6f4ff;
+      color: #555;
+      border-radius: 6px;
+    }
+    code {
+      background: #f5f5f5;
+      border: 1px solid #eee;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+    }
+    pre code {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f7f8fa;
+      border: 1px solid #eee;
+      overflow-x: auto;
+    }
+  }
+
+  .answer-content.collapsed {
+    max-height: 240px;
+    overflow: hidden;
+  }
+
+  .answer-content.collapsed::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 48px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #ffffff);
+    pointer-events: none;
+  }
+
+  .action-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
   }
 
   .icon-wrapper {
@@ -222,10 +383,63 @@ const SuggestionChip = styled.button`
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.08);
+
+  &:hover {
+    background: #e6f4ff;
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #1677ff;
+    outline-offset: 2px;
+  }
+`;
+
+const HintText = styled.div`
+  font-size: 12px;
+  color: #8c8c8c;
+  margin: -4px 0 8px 0;
+`;
+
+const ExpandButton = styled.button`
+  border: 1px solid #e6f4ff;
+  background: #f5fbff;
+  color: #1890ff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
 
   &:hover {
     background: #e6f4ff;
   }
+
+  &:focus-visible {
+    outline: 2px solid #1677ff;
+    outline-offset: 2px;
+  }
+`;
+
+const Toast = styled.div`
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: rgba(24, 144, 255, 0.95);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
+  font-size: 12px;
+  z-index: 3;
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  background: #eee;
+  margin: 12px 0;
 `;
 
 // 流式输出：使用 Coze API 的 stream 接口逐步渲染回答
@@ -335,6 +549,9 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -348,6 +565,24 @@ function App() {
   useEffect(() => {
     adjustHeight();
   }, [question]);
+
+  // 仅对超长回答默认折叠：长度超过 400 字或行数超过 6
+  useEffect(() => {
+    const shouldCollapse = (text: string): boolean => {
+      const len = (text || "").length;
+      const lines = (text || "").split(/\n/).length;
+      return len > 400 || lines > 6;
+    };
+    setCollapsed((prev) => {
+      const next = { ...prev };
+      answers.forEach((ans, idx) => {
+        if (!(idx in next)) {
+          next[idx] = shouldCollapse(ans);
+        }
+      });
+      return next;
+    });
+  }, [answers]);
 
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
@@ -450,6 +685,8 @@ function App() {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
+        setToast("已复制到剪贴板");
+        setTimeout(() => setToast(null), 1500);
         return;
       }
     } catch {
@@ -466,6 +703,8 @@ function App() {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
+      setToast("已复制到剪贴板");
+      setTimeout(() => setToast(null), 1500);
     } catch {
       // ignore
     }
@@ -474,9 +713,15 @@ function App() {
   const handleCopyIconClick = async (e: SyntheticEvent<HTMLDivElement>): Promise<void> => {
     try {
       const parent = e.currentTarget?.parentElement;
-      const textEl = parent?.querySelector?.(".answer-text") as HTMLElement | null;
+      const textEl = parent?.querySelector?.(".answer-content") as HTMLElement | null;
       const text = ((textEl?.innerText ?? textEl?.textContent) ?? "").trim();
       await copyTextToClipboard(text);
+      const idxAttr = parent?.getAttribute("data-index");
+      const idx = idxAttr ? parseInt(idxAttr, 10) : null;
+      if (idx !== null && !Number.isNaN(idx)) {
+        setCopiedIndex(idx);
+        setTimeout(() => setCopiedIndex(null), 1200);
+      }
     } catch {
       // ignore copy error
     }
@@ -484,6 +729,28 @@ function App() {
 
   return (
     <Container>
+      {toast && <Toast>{toast}</Toast>}
+      <Header>
+        <Brand>
+          <BrandIcon />
+          <div>
+            <Title>WX Sidebar Helper</Title>
+            <SubTitle>提问后会先给简答，再给详解</SubTitle>
+          </div>
+        </Brand>
+        <GhostButton
+          onClick={() => {
+            setQuestion("");
+            setAnswers([]);
+            setSuggestions([]);
+            setCollapsed({});
+            setCopiedIndex(null);
+          }}
+          disabled={isLoading || (!question.trim() && answers.length === 0 && suggestions.length === 0)}
+        >
+          清空内容
+        </GhostButton>
+      </Header>
       <InputContainer>
         <QuestionInput
           ref={textareaRef}
@@ -497,15 +764,31 @@ function App() {
           onClick={handleConfirm}
           disabled={!question.trim() || isLoading}
         >
-          {isLoading ? "请稍等..." : "确认"}
+          {isLoading ? <LoadingSpinner aria-label="loading" /> : "确认"}
         </ConfirmButton>
       </InputContainer>
+      <HintText>Enter 提交，Shift+Enter 换行</HintText>
+      <Divider />
 
       <AnswersContainer>
         {answers.map((answer, index) => (
-          <AnswerItem key={index}>
+          <AnswerItem key={index} data-index={index}>
             <div className="answer-text">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
+              <div className={`answer-content ${collapsed[index] ? "collapsed" : ""}`}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
+              </div>
+              <div className="action-row">
+                <ExpandButton
+                  onClick={() =>
+                    setCollapsed((prev) => ({
+                      ...prev,
+                      [index]: !prev[index],
+                    }))
+                  }
+                >
+                  {collapsed[index] ? "展开" : "收起"}
+                </ExpandButton>
+              </div>
             </div>
             <div
               className="icon-wrapper"
@@ -522,15 +805,30 @@ function App() {
             >
               <SendIcon />
             </div>
+            {copiedIndex === index && (
+              <span style={{
+                marginLeft: 8,
+                fontSize: 12,
+                color: "#52c41a"
+              }}>已复制</span>
+            )}
           </AnswerItem>
         ))}
 
         {suggestions.length > 0 && (
           <SuggestionsContainer>
             <SectionTitle>推荐问题</SectionTitle>
+            <HintText>单击填充，双击提交</HintText>
             <SuggestionList>
               {suggestions.map((s, i) => (
-                <SuggestionChip key={i} onClick={() => setQuestion(s)}>
+                <SuggestionChip
+                  key={i}
+                  onClick={() => setQuestion(s)}
+                  onDoubleClick={() => {
+                    setQuestion(s);
+                    setTimeout(() => handleConfirm(), 0);
+                  }}
+                >
                   {s}
                 </SuggestionChip>
               ))}
