@@ -53,4 +53,26 @@ const cozeLogMiddleware: Plugin = {
 
 export default defineConfig({
   plugins: [react(), cozeLogMiddleware],
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'styled-components',
+      'react-markdown',
+      'remark-gfm',
+    ],
+  },
+  build: {
+    target: 'es2019',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          styled: ['styled-components'],
+          markdown: ['react-markdown', 'remark-gfm'],
+        },
+      },
+    },
+  },
 })

@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense, memo, useCallback } from "react";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
 import styled, { keyframes } from "styled-components";
-import { CopyOutlined } from "@ant-design/icons";
+import CopyIcon from "./components/icons/CopyIcon";
 import { streamQuestion } from "./client_kn";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+const MarkdownRenderer = lazy(() => import("./components/MarkdownRenderer"));
 
 // 样式组件
 const Container = styled.div`
@@ -262,6 +261,8 @@ const AnswerItem = styled.div`
     word-break: break-word;
     white-space: normal;
     position: relative;
+    content-visibility: auto;
+    contain-intrinsic-size: 300px;
 
     /* Markdown 样式优化 */
     h1, h2, h3 {
@@ -340,7 +341,7 @@ const AnswerItem = styled.div`
   }
 `;
 
-const SendIcon = styled(CopyOutlined)`
+const SendIcon = styled(CopyIcon)`
   color: #1890ff;
   font-size: 16px;
   opacity: 0.8;
@@ -373,6 +374,23 @@ const SuggestionList = styled.div`
   flex-wrap: wrap;
   gap: 8px;
 `;
+
+type SuggestionItemProps = {
+  text: string;
+  onClick: (text: string, append: boolean) => void;
+  onDoubleClick: (text: string) => void;
+};
+
+const SuggestionItem = memo(function SuggestionItem({ text, onClick, onDoubleClick }: SuggestionItemProps) {
+  return (
+    <SuggestionChip
+      onClick={(e) => onClick(text, e.shiftKey || e.altKey)}
+      onDoubleClick={() => onDoubleClick(text)}
+    >
+      {text}
+    </SuggestionChip>
+  );
+});
 
 const SuggestionChip = styled.button`
   border: 1px solid #e6f4ff;
@@ -441,6 +459,58 @@ const Divider = styled.div`
   background: #eee;
   margin: 12px 0;
 `;
+
+type AnswerBlockProps = {
+  answer: string;
+  index: number;
+  collapsed: boolean;
+  onToggle: (index: number) => void;
+  onCopy: (text: string, index: number) => void;
+  copied: boolean;
+};
+
+const AnswerBlock = memo(function AnswerBlock(props: AnswerBlockProps) {
+  const { answer, index, collapsed, onToggle, onCopy, copied } = props;
+  const textRef = useRef<HTMLDivElement | null>(null);
+  return (
+    <AnswerItem key={index} data-index={index}>
+      <div className="answer-text">
+        <div ref={textRef} className={`answer-content ${collapsed ? "collapsed" : ""}`}>
+          <Suspense fallback={<span style={{ color: "#999" }}>加载中…</span>}>
+            <MarkdownRenderer text={answer} />
+          </Suspense>
+        </div>
+        <div className="action-row">
+          <ExpandButton onClick={() => onToggle(index)}>
+            {collapsed ? "展开" : "收起"}
+          </ExpandButton>
+        </div>
+      </div>
+      <div
+        className="icon-wrapper"
+        role="button"
+        title="复制该回答"
+        tabIndex={0}
+        onClick={() => {
+          const t = ((textRef.current?.innerText ?? textRef.current?.textContent) ?? "").trim();
+          if (t) onCopy(t, index);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            const t = ((textRef.current?.innerText ?? textRef.current?.textContent) ?? "").trim();
+            if (t) onCopy(t, index);
+          }
+        }}
+      >
+        <SendIcon />
+      </div>
+      {copied && (
+        <span style={{ marginLeft: 8, fontSize: 12, color: "#52c41a" }}>已复制</span>
+      )}
+    </AnswerItem>
+  );
+});
 
 // 流式输出：使用 Coze API 的 stream 接口逐步渲染回答
 // 在 handleConfirm 中驱动状态更新以实现增量显示
@@ -552,6 +622,7 @@ function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const requestIdRef = useRef<number>(0);
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -565,6 +636,14 @@ function App() {
   useEffect(() => {
     adjustHeight();
   }, [question]);
+
+  // 预取 Markdown 渲染组件，降低首次展示等待
+  useEffect(() => {
+    if (isLoading) {
+      // 动态导入以预热 chunk
+      void import("./components/MarkdownRenderer");
+    }
+  }, [isLoading]);
 
   // 仅对超长回答默认折叠：长度超过 400 字或行数超过 6
   useEffect(() => {
@@ -587,6 +666,8 @@ function App() {
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
       setIsLoading(true);
+      const reqId = Date.now();
+      requestIdRef.current = reqId;
       // 新问题开始时清空旧内容
       setAnswers([]);
       setSuggestions([]);
@@ -611,9 +692,13 @@ function App() {
 
         // 逐步消费流事件，拼接助手的文本片段
         for await (const evt of stream) {
-          // 调试输出，便于定位事件结构
-          // eslint-disable-next-line no-console
-          console.debug("Coze stream event:", evt);
+          // 若请求已被新的提交替换，停止处理
+          if (reqId !== requestIdRef.current) break;
+          // 调试输出仅在开发环境启用
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.debug("Coze stream event:", evt);
+          }
           const chunk = extractAssistantText(evt);
           if (!chunk) continue;
           hasChunkRef.current = true;
@@ -633,6 +718,7 @@ function App() {
               try {
                 const longStream = await streamQuestion(longPrompt);
                 for await (const evt2 of longStream) {
+                  if (reqId !== requestIdRef.current) break;
                   const chunk2 = extractAssistantText(evt2);
                   if (!chunk2) continue;
                   hasChunkRef.current = true;
@@ -680,7 +766,20 @@ function App() {
     setQuestion(e.target.value);
   };
 
-  const copyTextToClipboard = async (text: string): Promise<void> => {
+  const handleSuggestionClick = useCallback((s: string, append: boolean) => {
+    if (append) {
+      setQuestion((prev) => (prev ? `${prev}\n${s}` : s));
+    } else {
+      setQuestion(s);
+    }
+  }, []);
+
+  const handleSuggestionDoubleClick = useCallback((s: string) => {
+    setQuestion(s);
+    setTimeout(() => handleConfirm(), 0);
+  }, [handleConfirm]);
+
+  const copyTextToClipboard = useCallback(async (text: string): Promise<void> => {
     if (!text || !text.trim()) return;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -708,7 +807,17 @@ function App() {
     } catch {
       // ignore
     }
-  };
+  }, []);
+
+  const onToggleAnswer = useCallback((idx: number) => {
+    setCollapsed((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  }, []);
+
+  const onCopyAnswer = useCallback(async (text: string, idx: number) => {
+    await copyTextToClipboard(text);
+    setCopiedIndex(idx);
+    setTimeout(() => setCopiedIndex(null), 1200);
+  }, [copyTextToClipboard]);
 
   const handleCopyIconClick = async (e: SyntheticEvent<HTMLDivElement>): Promise<void> => {
     try {
@@ -734,22 +843,24 @@ function App() {
         <Brand>
           <BrandIcon />
           <div>
-            <Title>WX Sidebar Helper</Title>
+            <Title>企业微信侧边栏</Title>
             <SubTitle>提问后会先给简答，再给详解</SubTitle>
           </div>
         </Brand>
-        <GhostButton
-          onClick={() => {
-            setQuestion("");
-            setAnswers([]);
-            setSuggestions([]);
-            setCollapsed({});
-            setCopiedIndex(null);
-          }}
-          disabled={isLoading || (!question.trim() && answers.length === 0 && suggestions.length === 0)}
-        >
-          清空内容
-        </GhostButton>
+      <GhostButton
+        onClick={() => {
+          setQuestion("");
+          setAnswers([]);
+          setSuggestions([]);
+          setCollapsed({});
+          setCopiedIndex(null);
+          // 使当前进行中的请求失效
+          requestIdRef.current = Date.now();
+        }}
+        disabled={isLoading || (!question.trim() && answers.length === 0 && suggestions.length === 0)}
+      >
+        清空内容
+      </GhostButton>
       </Header>
       <InputContainer>
         <QuestionInput
@@ -772,65 +883,29 @@ function App() {
 
       <AnswersContainer>
         {answers.map((answer, index) => (
-          <AnswerItem key={index} data-index={index}>
-            <div className="answer-text">
-              <div className={`answer-content ${collapsed[index] ? "collapsed" : ""}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-              </div>
-              <div className="action-row">
-                <ExpandButton
-                  onClick={() =>
-                    setCollapsed((prev) => ({
-                      ...prev,
-                      [index]: !prev[index],
-                    }))
-                  }
-                >
-                  {collapsed[index] ? "展开" : "收起"}
-                </ExpandButton>
-              </div>
-            </div>
-            <div
-              className="icon-wrapper"
-              role="button"
-              title="复制该回答"
-              tabIndex={0}
-              onClick={handleCopyIconClick}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleCopyIconClick(e);
-                }
-              }}
-            >
-              <SendIcon />
-            </div>
-            {copiedIndex === index && (
-              <span style={{
-                marginLeft: 8,
-                fontSize: 12,
-                color: "#52c41a"
-              }}>已复制</span>
-            )}
-          </AnswerItem>
+          <AnswerBlock
+            key={index}
+            answer={answer}
+            index={index}
+            collapsed={!!collapsed[index]}
+            onToggle={onToggleAnswer}
+            onCopy={onCopyAnswer}
+            copied={copiedIndex === index}
+          />
         ))}
 
         {suggestions.length > 0 && (
           <SuggestionsContainer>
             <SectionTitle>推荐问题</SectionTitle>
-            <HintText>单击填充，双击提交</HintText>
+            <HintText>单击填充，双击提交，Shift/Alt 点击追加</HintText>
             <SuggestionList>
               {suggestions.map((s, i) => (
-                <SuggestionChip
+                <SuggestionItem
                   key={i}
-                  onClick={() => setQuestion(s)}
-                  onDoubleClick={() => {
-                    setQuestion(s);
-                    setTimeout(() => handleConfirm(), 0);
-                  }}
-                >
-                  {s}
-                </SuggestionChip>
+                  text={s}
+                  onClick={handleSuggestionClick}
+                  onDoubleClick={handleSuggestionDoubleClick}
+                />
               ))}
             </SuggestionList>
           </SuggestionsContainer>
