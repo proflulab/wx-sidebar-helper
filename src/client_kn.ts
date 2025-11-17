@@ -23,6 +23,8 @@ export async function streamQuestion(
   });
 
   async function sendCompletedLog(text: string): Promise<void> {
+    // 仅在开发环境上报日志，避免预览/生产因无端点报错
+    if (!import.meta.env.DEV) return;
     try {
       // 优先使用 sendBeacon，避免浏览器因页面更新或空响应而取消请求
       if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {

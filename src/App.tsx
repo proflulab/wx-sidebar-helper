@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
+import loadingIconUrl from "./assets/loading.png";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { CopyOutlined } from "@ant-design/icons";
 import { streamQuestion } from "./client_kn";
 import ReactMarkdown from "react-markdown";
@@ -155,6 +156,15 @@ const AnswerItem = styled.div`
     padding: 2px 0;
     word-break: break-word;
     white-space: normal;
+
+    /* 使 Markdown 图片适应侧栏宽度 */
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 8px 0;
+      border-radius: 6px;
+    }
   }
 
   .icon-wrapper {
@@ -177,6 +187,31 @@ const AnswerItem = styled.div`
       transform: translateY(-1px);
     }
   }
+`;
+
+// 第二回答加载提示样式（显示在第一个回答下方）
+const LoadingNotice = styled.div`
+  color: #68707a;
+  font-size: 13px;
+  margin: -6px 0 10px 0;
+  padding-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+const LoadingIcon = styled.img`
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  opacity: 0.85;
+  animation: ${spin} 1.2s linear infinite;
+  transform-origin: center;
 `;
 
 const SendIcon = styled(CopyOutlined)`
@@ -333,6 +368,7 @@ function App() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingSecond, setIsLoadingSecond] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
 
@@ -352,6 +388,7 @@ function App() {
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
       setIsLoading(true);
+      setIsLoadingSecond(false);
       // 新问题开始时清空旧内容
       setAnswers([]);
       setSuggestions([]);
@@ -393,6 +430,7 @@ function App() {
           // 在首次短答片段显示后，触发第二次请求：详细回答（不采集推荐问题）
           if (!longStarted) {
             longStarted = true;
+            setIsLoadingSecond(true);
             const longPrompt = buildLongPrompt(question);
             longPromise = (async () => {
               try {
@@ -413,6 +451,8 @@ function App() {
                 const detail = getErrorMessage(error);
                 console.error("Error calling Coze API (long):", detail);
                 setAnswers((prev) => [...prev, "Error: Failed to get detailed answer"]);
+              } finally {
+                setIsLoadingSecond(false);
               }
             })();
           }
@@ -430,6 +470,7 @@ function App() {
       } finally {
         setHasConfirmed(true);
         setIsLoading(false);
+        setIsLoadingSecond(false);
       }
     }
   };
@@ -503,26 +544,34 @@ function App() {
 
       <AnswersContainer>
         {answers.map((answer, index) => (
-          <AnswerItem key={index}>
-            <div className="answer-text">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-            </div>
-            <div
-              className="icon-wrapper"
-              role="button"
-              title="复制该回答"
-              tabIndex={0}
-              onClick={handleCopyIconClick}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleCopyIconClick(e);
-                }
-              }}
-            >
-              <SendIcon />
-            </div>
-          </AnswerItem>
+          <Fragment key={index}>
+            <AnswerItem>
+              <div className="answer-text">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
+              </div>
+              <div
+                className="icon-wrapper"
+                role="button"
+                title="复制该回答"
+                tabIndex={0}
+                onClick={handleCopyIconClick}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleCopyIconClick(e);
+                  }
+                }}
+              >
+                <SendIcon />
+              </div>
+            </AnswerItem>
+            {index === 0 && isLoadingSecond && (
+              <LoadingNotice>
+                <span>正在加载第二个回答</span>
+                <LoadingIcon src={loadingIconUrl} alt="loading" />
+              </LoadingNotice>
+            )}
+          </Fragment>
         ))}
 
         {suggestions.length > 0 && (
