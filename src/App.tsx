@@ -581,15 +581,15 @@ const isRecommendedQuestion = (text: string): boolean => {
   return endsWithQuestion && paragraphs.length < 2;
 };
 
-// 清理长答末尾的知识回溯后缀（如：^^（recall slice 1、recall slice 2...））
+// 清理知识回溯标记（^^[recall slice ...] / ^^(recall slice ...) / ^^（recall slice ...））
 const cleanRecallSuffix = (text: string): string => {
   if (!text || typeof text !== "string") return text || "";
   let t = text;
-  // 中文括号样式
-  t = t.replace(/\s*\^{2}\s*（[^）]*recall\s*slice[^）]*）\s*$/i, "");
-  // 英文括号样式
-  t = t.replace(/\s*\^{2}\s*\([^)]*recall\s*slice[^)]*\)\s*$/i, "");
-  return t;
+  // 全局移除，不仅限结尾
+  t = t.replace(/\s*\^{2}\s*\[[^\]]*recall\s*slice[^\]]*\]\s*/gi, ""); // 方括号
+  t = t.replace(/\s*\^{2}\s*\([^)]*recall\s*slice[^)]*\)\s*/gi, "");    // 英文圆括号
+  t = t.replace(/\s*\^{2}\s*（[^）]*recall\s*slice[^）]*）\s*/gi, "");     // 中文圆括号
+  return t.trim();
 };
 
 // 为推荐问题提供不重复的灵动表情符号（新批次）
@@ -676,13 +676,15 @@ function App() {
           console.debug("Coze stream event:", evt);
           const chunk = extractAssistantText(evt);
           if (!chunk) continue;
+          const cleanedChunk = cleanRecallSuffix(chunk);
+          if (!cleanedChunk) continue;
           hasChunkRef.current = true;
           // 分类：推荐问题（一句话） vs 正常回答
-          if (isRecommendedQuestion(chunk)) {
-            setSuggestions((prev) => (prev.includes(chunk) ? prev : [...prev, chunk]));
+          if (isRecommendedQuestion(cleanedChunk)) {
+            setSuggestions((prev) => (prev.includes(cleanedChunk) ? prev : [...prev, cleanedChunk]));
           } else {
             // 每条 completed 消息追加一个独立的回答框
-            setAnswers((prev) => [...prev, chunk]);
+            setAnswers((prev) => [...prev, cleanedChunk]);
           }
 
           // 在首次短答片段显示后，触发第二次请求：详细回答（不采集推荐问题）
