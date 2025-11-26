@@ -689,6 +689,7 @@ function App() {
   const [history, setHistory] = useState<string[]>([]);
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingFirst, setIsLoadingFirst] = useState<boolean>(false);
   const [isLoadingSecond, setIsLoadingSecond] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
@@ -715,6 +716,7 @@ function App() {
         return next.slice(0, 10);
       });
       setIsLoading(true);
+      setIsLoadingFirst(true);
       setIsLoadingSecond(false);
       // 新问题开始时清空旧内容
       setAnswers([]);
@@ -787,6 +789,9 @@ function App() {
           }
         }
 
+        // 短答流结束，关闭第一个回答的加载提示
+        setIsLoadingFirst(false);
+
         // 等待第二次请求结束后再取消加载态
         if (longPromise) {
           await longPromise;
@@ -799,6 +804,7 @@ function App() {
       } finally {
         setHasConfirmed(true);
         setIsLoading(false);
+        setIsLoadingFirst(false);
         setIsLoadingSecond(false);
       }
     }
@@ -962,6 +968,13 @@ function App() {
           </HeroSection>
 
           <AnswersContainer>
+            {/* 第一个回答加载提示：在尚未产生任何回答时显示在顶部 */}
+            {isLoadingFirst && answers.length === 0 && (
+              <LoadingNotice>
+                <span>正在加载第一个回答</span>
+                <LoadingIcon src={loadingIconUrl} alt="loading" />
+              </LoadingNotice>
+            )}
             {answers.map((answer, index) => (
               <Fragment key={index}>
                 <AnswerItem>
@@ -984,6 +997,13 @@ function App() {
                     <SendIcon />
                   </div>
                 </AnswerItem>
+                {/* 第一个回答加载提示：在第一个回答下方显示，与第二个提示一致 */}
+                {index === 0 && isLoadingFirst && (
+                  <LoadingNotice>
+                    <span>正在加载第一个回答</span>
+                    <LoadingIcon src={loadingIconUrl} alt="loading" />
+                  </LoadingNotice>
+                )}
                 {index === 0 && isLoadingSecond && (
                   <LoadingNotice>
                     <span>正在加载第二个回答</span>
