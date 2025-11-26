@@ -939,33 +939,7 @@ function App() {
         </HistoryContainer>
       ) : (
         <>
-          {/* 欢迎区：模仿示例图片结构与文字风格 */}
-          <HeroSection>
-            <HeroTitle>Welcome to the new Bing</HeroTitle>
-            <HeroCards>
-              <HeroCard>
-                <HeroCardText>
-                  <Emoji>🧠</Emoji>
-                  <span>Ask complex questions</span>
-                </HeroCardText>
-                <a href="#hero-input" aria-label="sample-question" onClick={focusHeroInput}>Learn more</a>
-              </HeroCard>
-              <HeroCard>
-                <HeroCardText>
-                  <Emoji>🎨</Emoji>
-                  <span>Get creative inspiration</span>
-                </HeroCardText>
-                <a href="#hero-input" aria-label="creative" onClick={focusHeroInput}>Explore</a>
-              </HeroCard>
-              <HeroCard>
-                <HeroCardText>
-                  <Emoji>✍️</Emoji>
-                  <span>Rewrite text together</span>
-                </HeroCardText>
-                <a href="#hero-input" aria-label="rewrite" onClick={focusHeroInput}>Try it</a>
-              </HeroCard>
-            </HeroCards>
-          </HeroSection>
+          {/* 欢迎区与卡片已移除，下面直接展示回答与输入区域 */}
 
           <AnswersContainer>
             {/* 第一个回答加载提示：在尚未产生任何回答时显示在顶部 */}
