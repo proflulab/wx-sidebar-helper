@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 const cozeLogMiddleware: Plugin = {
   name: 'coze-log-middleware',
   configureServer(server: ViteDevServer) {
-    server.middlewares.use('/__coze_log', (req, res, _next) => {
+    server.middlewares.use('/__coze_log', (req, res) => {
       // 允许 OPTIONS 预检与 POST
       if (req.method === 'OPTIONS') {
         res.statusCode = 204;
@@ -36,10 +36,10 @@ const cozeLogMiddleware: Plugin = {
             // 兼容 sendBeacon 默认的 text/plain
             text = typeof data === 'string' ? data : '';
           }
-          // eslint-disable-next-line no-console
+           
           console.log(`✅ [Coze] Message completed: ${text}`);
         } catch (e) {
-          // eslint-disable-next-line no-console
+           
           console.error('Failed to parse coze log body:', e);
         }
         res.statusCode = 200;

@@ -720,7 +720,7 @@ function App() {
         // 逐步消费流事件，拼接助手的文本片段
         for await (const evt of stream) {
           // 调试输出，便于定位事件结构
-          // eslint-disable-next-line no-console
+           
           console.debug("Coze stream event:", evt);
           const chunk = extractAssistantText(evt);
           if (!chunk) continue;
