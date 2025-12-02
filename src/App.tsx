@@ -164,6 +164,35 @@ const SendLink = styled.a`
 
 /* 删除 EnterOverlay 内嵌提示样式 */
 
+const ConfirmButton = styled.button`
+  padding: 0 20px;
+  height: 42px;
+  background: #1890ff;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  align-self: flex-start;
+  line-height: 42px;
+
+  &:hover {
+    background: #40a9ff;
+    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+  }
+
+  &:active {
+    background: #096dd9;
+  }
+
+  &:disabled {
+    background: #d9d9d9;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+`;
 
 const AnswersContainer = styled.div`
   max-height: calc(100vh - 120px);
@@ -415,13 +444,79 @@ const SuggestionText = styled.div`
   color: #1f2937;
 `;
 
+const SuggestionAction = styled.a`
+  color: #0b57d0;
+  text-decoration: none;
+  font-weight: 600;
+
+  &:hover { text-decoration: underline; }
+`;
 
 // 欢迎区与功能卡片（仿图示布局）
+const HeroSection = styled.div`
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 12px 14px;
+  margin: 10px 0 12px;
+`;
+
+const HeroTitle = styled.div`
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+`;
+
+const HeroCards = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const HeroCard = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafafa;
+  border: 1px solid #eeeeee;
+  border-radius: 10px;
+  padding: 10px 12px;
+`;
+
+const HeroCardText = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+
+  a {
+    color: #0b57d0;
+    text-decoration: none;
+    font-weight: 600;
+  }
+`;
 
 const Emoji = styled.span`
   font-size: 18px;
 `;
 
+const SuggestionChip = styled.button`
+  border: 1px solid #e6f4ff;
+  background: #f5fbff;
+  color: #1890ff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #e6f4ff;
+  }
+`;
 
 // 历史记录样式
 const HistoryContainer = styled.div`
@@ -587,7 +682,7 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"Chat" | "History">("Chat");
+  const [activeTab, setActiveTab] = useState<"Chat" | "Compose" | "History">("Chat");
   const [question, setQuestion] = useState<string>("");
   const [answers, setAnswers] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -620,7 +715,6 @@ function App() {
         const next = [q, ...prev.filter((it) => it !== q)];
         return next.slice(0, 10);
       });
-      setQuestion("");
       setIsLoading(true);
       setIsLoadingFirst(true);
       setIsLoadingSecond(false);
@@ -633,7 +727,7 @@ function App() {
 
       try {
         // 第一次请求：短答（3句话以内）
-        const shortPrompt = buildShortPrompt(q);
+        const shortPrompt = buildShortPrompt(question);
         const stream = await streamQuestion(shortPrompt);
         let longStarted = false;
         let longPromise: Promise<void> | null = null;
@@ -668,7 +762,7 @@ function App() {
           if (!longStarted) {
             longStarted = true;
             setIsLoadingSecond(true);
-            const longPrompt = buildLongPrompt(q);
+            const longPrompt = buildLongPrompt(question);
             longPromise = (async () => {
               try {
                 const longStream = await streamQuestion(longPrompt);
@@ -792,6 +886,7 @@ function App() {
     <Container>
       <TopBar>
         <Tab $active={activeTab === "Chat"} onClick={() => setActiveTab("Chat")}>Chat</Tab>
+        <Tab $active={activeTab === "Compose"} onClick={() => setActiveTab("Compose")}>Compose</Tab>
         <Tab $active={activeTab === "History"} onClick={() => setActiveTab("History")}>History</Tab>
         <FlexSpacer />
         <RefreshButton
