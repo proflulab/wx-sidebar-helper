@@ -70,13 +70,98 @@ async function getAccessToken(config: ReturnType<typeof getJWTConfig>): Promise<
   throw new Error(`Invalid OAuth response: ${JSON.stringify(data)}`);
 }
 
-// JWT Token API 中间件
+// 速率限制（本地开发用）
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 30;
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1 };
+  }
+  if (record.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0 };
+  }
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX - record.count };
+}
+
+// JWT Token API 中间件（带安全保护）
 const cozeTokenMiddleware: Plugin = {
   name: 'coze-token-middleware',
   configureServer(server: ViteDevServer) {
     server.middlewares.use('/api/coze-token', async (req, res) => {
+      // 安全响应头
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Request-Id');
+
+      if (req.method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
+
+      // 只允许 POST
+      if (req.method !== 'POST') {
+        res.statusCode = 405;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+        return;
+      }
+
+      // 速率限制
+      const clientIp = req.socket?.remoteAddress || 'unknown';
+      const rateLimit = checkRateLimit(clientIp);
+      res.setHeader('X-RateLimit-Remaining', rateLimit.remaining.toString());
+      
+      if (!rateLimit.allowed) {
+        res.statusCode = 429;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Too many requests', retryAfter: 60 }));
+        return;
+      }
+
+      try {
+        const config = getJWTConfig();
+        if (!config.appId || !config.keyId || !config.privateKey) {
+          console.error('[Coze] Missing JWT configuration');
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Server configuration error' }));
+          return;
+        }
+
+        const tokenData = await getAccessToken(config);
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          access_token: tokenData.access_token,
+          expires_in: tokenData.expires_in,
+          token_type: 'Bearer',
+        }));
+      } catch (error) {
+        console.error('[Coze] Token generation error:', error);
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Failed to generate token' }));
+      }
+    });
+  },
+};
+
+// Coze 流式聊天代理中间件（Token 不暴露给前端）
+const cozeStreamMiddleware: Plugin = {
+  name: 'coze-stream-middleware',
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use('/api/coze-stream', async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
       if (req.method === 'OPTIONS') {
@@ -85,28 +170,96 @@ const cozeTokenMiddleware: Plugin = {
         return;
       }
 
-      try {
-        const config = getJWTConfig();
-        if (!config.appId || !config.keyId || !config.privateKey) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Missing JWT configuration' }));
-          return;
-        }
-
-        const tokenData = await getAccessToken(config);
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify(tokenData));
-      } catch (error) {
-        console.error('Token generation error:', error);
-        res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ 
-          error: 'Failed to generate token',
-          message: error instanceof Error ? error.message : String(error),
-        }));
+      if (req.method !== 'POST') {
+        res.statusCode = 405;
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+        return;
       }
+
+      // 速率限制
+      const clientIp = req.socket?.remoteAddress || 'unknown';
+      if (!checkRateLimit(clientIp).allowed) {
+        res.statusCode = 429;
+        res.end(JSON.stringify({ error: 'Too many requests' }));
+        return;
+      }
+
+      // 读取请求体
+      let body = '';
+      req.on('data', (chunk: Buffer | string) => {
+        body += typeof chunk === 'string' ? chunk : chunk.toString();
+      });
+
+      req.on('end', async () => {
+        try {
+          const { message, user_id = 'web-user' } = JSON.parse(body || '{}');
+          if (!message) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Message is required' }));
+            return;
+          }
+
+          const config = getJWTConfig();
+          const tokenData = await getAccessToken(config);
+          const botId = process.env.VITE_COZE_BOT_ID || '';
+
+          // 调用 Coze API
+          const chatResponse = await fetch(`${config.apiBase}/v3/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${tokenData.access_token}`,
+            },
+            body: JSON.stringify({
+              bot_id: botId,
+              user_id,
+              stream: true,
+              auto_save_history: true,
+              additional_messages: [{ role: 'user', content: message, content_type: 'text' }],
+            }),
+          });
+
+          if (!chatResponse.ok) {
+            res.statusCode = 502;
+            res.end(JSON.stringify({ error: 'Chat API failed' }));
+            return;
+          }
+
+          // 设置 SSE 响应头
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+
+          // 转发流式响应
+          const reader = chatResponse.body?.getReader();
+          if (!reader) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: 'No response body' }));
+            return;
+          }
+
+          const decoder = new TextDecoder();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(decoder.decode(value, { stream: true }));
+            }
+          } finally {
+            reader.releaseLock();
+          }
+          res.end();
+
+        } catch (error) {
+          console.error('[Coze] Stream proxy error:', error);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: 'Internal server error' }));
+          } else {
+            res.end();
+          }
+        }
+      });
     });
   },
 };
@@ -160,5 +313,5 @@ const cozeLogMiddleware: Plugin = {
 };
 
 export default defineConfig({
-  plugins: [react(), cozeTokenMiddleware, cozeLogMiddleware],
+  plugins: [react(), cozeStreamMiddleware, cozeTokenMiddleware, cozeLogMiddleware],
 })

@@ -1,80 +1,141 @@
-// 浏览器封装：导出 streamQuestion(question)，供页面调用
-import { RoleType, ChatEventType } from '@coze/api';
-import { client, botId, userId } from './client';
+/**
+ * Coze 聊天客户端 - 代理模式
+ * 
+ * 所有请求通过后端代理，Token 不暴露给前端
+ */
 
+const STREAM_PROXY_URL = '/api/coze-stream';
+const userId = import.meta.env.VITE_COZE_USER_ID || 'web-user';
+
+/**
+ * 解析 SSE 事件
+ */
+function parseSSEEvent(line: string): { event?: string; data?: any } | null {
+  if (!line.trim() || line.startsWith(':')) return null;
+  
+  if (line.startsWith('event:')) {
+    return { event: line.slice(6).trim() };
+  }
+  
+  if (line.startsWith('data:')) {
+    const dataStr = line.slice(5).trim();
+    if (!dataStr || dataStr === '[DONE]') return null;
+    try {
+      return { data: JSON.parse(dataStr) };
+    } catch {
+      return { data: dataStr };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * 流式提问（通过代理）
+ */
 export async function streamQuestion(
-  question: string,
-  options: Record<string, unknown> = {}
+  question: string
 ): Promise<AsyncGenerator<string, void, unknown>> {
   const q = typeof question === 'string' ? question.trim() : '';
   if (!q) throw new Error('Question is required');
-  const stream: AsyncIterable<any> = await client.chat.stream({
-    bot_id: botId,
-    user_id: userId,
-    additional_messages: [
-      {
-        role: RoleType.User,
-        content: q,
-        content_type: 'text',
-        type: 'question',
-      },
-    ],
-    ...options,
+
+  const response = await fetch(STREAM_PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: q, user_id: userId }),
   });
 
-  async function sendCompletedLog(text: string): Promise<void> {
-    // 仅在开发环境上报日志，避免预览/生产因无端点报错
-    if (!import.meta.env.DEV) return;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+
+  const streamReader = reader; // 确保类型安全
+
+  async function* processStream(): AsyncGenerator<string, void, unknown> {
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentEvent = '';
+
     try {
-      // 优先使用 sendBeacon，避免浏览器因页面更新或空响应而取消请求
-      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-        const blob = new Blob([JSON.stringify({ text })], { type: 'application/json' });
-        navigator.sendBeacon('/__coze_log', blob);
-        return;
-      }
-      // 回退到常规 fetch（不使用 keepalive）
-      await fetch('/__coze_log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-    } catch {
-      // 忽略网络/日志错误
-      void 0;
-    }
-  }
+      while (true) {
+        const { done, value } = await streamReader.read();
+        if (done) break;
 
-  // 仅传递“消息完成”中的纯文本答案；忽略知识回溯等非文本内容
-  async function* onlyCompletedText(): AsyncGenerator<string, void, unknown> {
-    for await (const evt of stream) {
-      if (evt?.event !== ChatEventType.CONVERSATION_MESSAGE_COMPLETED) continue;
-      const type = evt?.data?.content_type;
-      const raw = evt?.data?.content;
-      let text = '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      const rawStr = typeof raw === 'string' ? raw.trim() : '';
-      // 优先识别 JSON：仅当 msg_type === 'answer' 时采纳
-      if (rawStr && rawStr.startsWith('{')) {
-        try {
-          const obj = JSON.parse(rawStr);
-          if (obj?.msg_type === 'answer' && typeof obj?.content === 'string') {
-            text = obj.content;
+        for (const line of lines) {
+          const parsed = parseSSEEvent(line);
+          if (!parsed) continue;
+
+          if (parsed.event) {
+            currentEvent = parsed.event;
           }
-        } catch {
-          // ignore malformed JSON; ensure block is non-empty for lint
-          void 0;
-        }
-      } else if (type === 'text' && rawStr) {
-        // 非 JSON 的纯文本内容直接使用
-        text = rawStr;
-      }
 
-      if (text && text.trim()) {
-        // 将完成消息发送到终端日志端点
-        sendCompletedLog(text);
-        yield text;
+          if (parsed.data && currentEvent === 'conversation.message.completed') {
+            const content = parsed.data?.content;
+            const contentType = parsed.data?.content_type;
+            const msgType = parsed.data?.type;
+            
+            // 只处理 answer 类型的文本消息
+            if (contentType === 'text' && content && msgType === 'answer') {
+              let text = content;
+              
+              // 处理 JSON 格式的内容
+              if (typeof content === 'string' && content.trim().startsWith('{')) {
+                try {
+                  const obj = JSON.parse(content);
+                  // 过滤非内容事件
+                  if (obj?.msg_type === 'generate_answer_finish' || 
+                      obj?.msg_type === 'knowledge_recall' || 
+                      obj?.msg_type === 'event' ||
+                      obj?.msg_type === 'verbose') {
+                    continue;
+                  }
+                  // 提取实际内容
+                  if (obj?.msg_type === 'answer' && typeof obj?.content === 'string') {
+                    text = obj.content;
+                  } else if (typeof obj?.content === 'string') {
+                    text = obj.content;
+                  }
+                } catch {
+                  // 使用原始内容
+                }
+              }
+
+              // 再次检查是否为系统事件消息
+              if (text && typeof text === 'string') {
+                const trimmed = text.trim();
+                // 过滤掉系统事件 JSON
+                if (trimmed.startsWith('{') && trimmed.includes('msg_type')) {
+                  try {
+                    const check = JSON.parse(trimmed);
+                    if (check?.msg_type && check.msg_type !== 'answer') {
+                      continue;
+                    }
+                  } catch {
+                    // 不是 JSON，继续处理
+                  }
+                }
+                if (trimmed && !trimmed.includes('"msg_type":"generate_answer_finish"')) {
+                  yield trimmed;
+                }
+              }
+            }
+          }
+        }
       }
+    } finally {
+      streamReader.releaseLock();
     }
   }
-  return onlyCompletedText();
+
+  return processStream();
 }
+
+export { userId };
