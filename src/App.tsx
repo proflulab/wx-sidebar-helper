@@ -586,18 +586,52 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+// 历史记录存储 key 和最大条数
+const HISTORY_STORAGE_KEY = '__coze_chat_history__';
+const HISTORY_MAX_COUNT = 20;
+
+// 从 localStorage 加载历史记录
+function loadHistory(): string[] {
+  try {
+    const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed.slice(0, HISTORY_MAX_COUNT);
+      }
+    }
+  } catch {
+    // 忽略解析错误
+  }
+  return [];
+}
+
+// 保存历史记录到 localStorage
+function saveHistory(history: string[]): void {
+  try {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(0, HISTORY_MAX_COUNT)));
+  } catch {
+    // 忽略存储错误
+  }
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<"Chat" | "History">("Chat");
   const [question, setQuestion] = useState<string>("");
   const [answers, setAnswers] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>(loadHistory);
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingFirst, setIsLoadingFirst] = useState<boolean>(false);
   const [isLoadingSecond, setIsLoadingSecond] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
+
+  // 当 history 变化时保存到 localStorage
+  useEffect(() => {
+    saveHistory(history);
+  }, [history]);
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -614,11 +648,13 @@ function App() {
 
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
-      // 发送前把问题缓存到历史（去重，最多10条）
+      // 发送前把问题缓存到历史（去重，最多20条，超出删除最早的）
       const q = question.trim();
       setHistory((prev) => {
-        const next = [q, ...prev.filter((it) => it !== q)];
-        return next.slice(0, 10);
+        const filtered = prev.filter((it) => it !== q);
+        const next = [q, ...filtered];
+        // 超过20条时删除最早的（数组末尾）
+        return next.slice(0, HISTORY_MAX_COUNT);
       });
       setQuestion("");
       setIsLoading(true);
