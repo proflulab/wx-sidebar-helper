@@ -53,20 +53,26 @@ export async function saveAnswer(answer: string): Promise<boolean> {
 // 获取历史记录
 export async function getHistory(): Promise<HistoryRecord[]> {
   try {
+    console.log('开始获取历史记录...');
     const { data, error } = await supabase
       .from('history')
-      .select('*')
-      .order('id', { ascending: false })
+      .select('question, answer')
       .limit(50);
     
     if (error) {
-      console.error('获取历史记录失败:', error);
+      console.error('获取历史记录失败 - Supabase错误:', error);
+      console.error('错误详情:', JSON.stringify(error, null, 2));
       return [];
     }
     
+    console.log('获取历史记录成功，共', data?.length || 0, '条');
     return data || [];
   } catch (err) {
-    console.error('Failed to get history:', err);
+    console.error('Failed to get history - 异常:', err);
+    if (err instanceof Error) {
+      console.error('错误消息:', err.message);
+      console.error('错误堆栈:', err.stack);
+    }
     return [];
   }
 }

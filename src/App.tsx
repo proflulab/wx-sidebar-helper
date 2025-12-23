@@ -6,7 +6,7 @@ import { CopyOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { streamQuestion } from "./client_kn";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { saveToHistory } from "./supabase";
+import { saveToHistory, getHistory, type HistoryRecord } from "./supabase";
 
 // 样式组件
 const Container = styled.div`
@@ -440,6 +440,76 @@ const SaveIcon = styled(SaveOutlined)`
   }
 `;
 
+// 保存提示框
+const SavePromptOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`;
+
+const SavePromptBox = styled.div`
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 320px;
+  width: 90%;
+`;
+
+const SavePromptTitle = styled.div`
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 12px;
+  text-align: center;
+`;
+
+const SavePromptMessage = styled.div`
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 20px;
+  text-align: center;
+`;
+
+const SavePromptButtons = styled.div`
+  display: flex;
+  gap: 12px;
+`;
+
+const SavePromptButton = styled.button<{ $primary?: boolean }>`
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  ${({ $primary }) => $primary ? `
+    background: #1890ff;
+    color: white;
+    
+    &:hover {
+      background: #40a9ff;
+    }
+  ` : `
+    background: #f3f4f6;
+    color: #374151;
+    
+    &:hover {
+      background: #e5e7eb;
+    }
+  `}
+`;
+
 // 推荐问题模块样式
 const SuggestionsContainer = styled.div`
   background: white;
@@ -570,6 +640,25 @@ const HistoryContainer = styled.div`
   border-radius: 8px;
   border: 1px solid #f0f0f0;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #999;
+  }
 `;
 
 const HistoryTitle = styled.div`
@@ -586,11 +675,11 @@ const HistoryList = styled.div`
 
 const HistoryItem = styled.div`
   display: flex;
-  align-items: center;
+  flex-direction: column;
   background: #fafafa;
   border: 1px solid #eeeeee;
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   font-size: 13px;
   color: #1f2937;
   cursor: pointer;
@@ -599,6 +688,7 @@ const HistoryItem = styled.div`
   &:hover {
     background: #f5f8fc;
     transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
 `;
 
@@ -732,19 +822,56 @@ function App() {
   const [answers, setAnswers] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [history, setHistory] = useState<string[]>([]);
+  const [dbHistory, setDbHistory] = useState<HistoryRecord[]>([]); // Supabase历史记录
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false); // 加载历史记录
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingFirst, setIsLoadingFirst] = useState<boolean>(false);
   const [isLoadingSecond, setIsLoadingSecond] = useState<boolean>(false);
-  const [saveOption, setSaveOption] = useState<'short' | 'long'>('short'); // 保存选项，默认短回答
+  const [showSavePrompt, setShowSavePrompt] = useState<boolean>(false); // 显示保存提示
+  const [countdown, setCountdown] = useState<number>(5); // 倒计时
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
   const currentQuestionRef = useRef<string>("");
   const shortAnswerRef = useRef<string>("");
   const longAnswerRef = useRef<string>("");
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 从 Supabase 加载历史记录
+  const loadHistory = async () => {
+    console.log('App: 开始加载历史记录...');
+    setIsLoadingHistory(true);
+    try {
+      const records = await getHistory();
+      console.log('App: 获取到', records.length, '条历史记录');
+      setDbHistory(records);
+    } catch (error) {
+      console.error('App: 加载历史记录失败:', error);
+      if (error instanceof Error) {
+        console.error('App: 错误详情:', error.message);
+      }
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // 当切换到 History 标签时加载历史记录
+  useEffect(() => {
+    if (activeTab === 'History') {
+      console.log('切换到 History 标签，触发加载');
+      loadHistory();
+    }
+  }, [activeTab]);
 
   // 保存回答到 Supabase（type: 'short' | 'long'）
   const handleSaveAnswer = async (type: 'short' | 'long'): Promise<void> => {
+    // 清除倒计时
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    setShowSavePrompt(false);
+    
     const question = currentQuestionRef.current;
     const answer = type === 'short' ? shortAnswerRef.current : longAnswerRef.current;
     
@@ -881,24 +1008,34 @@ function App() {
       await Promise.all([shortTask, longTask]);
       clearTimeout(timeoutId);
       
-      // 根据用户选择自动保存到 Supabase
-      const questionToSave = currentQuestionRef.current;
-      let answerToSave: string | null = null;
+      // 显示保存提示框，启动5秒倒计时
+      setShowSavePrompt(true);
+      setCountdown(5);
       
-      if (saveOption === 'short') {
-        answerToSave = shortAnswerRef.current;
-        console.log('准备保存短回答 - 问题:', questionToSave, '回答长度:', answerToSave?.length || 0);
-      } else {
-        answerToSave = longAnswerRef.current;
-        console.log('准备保存长回答 - 问题:', questionToSave, '回答长度:', answerToSave?.length || 0);
-      }
+      let remainingTime = 5;
+      const countdownInterval = setInterval(() => {
+        remainingTime--;
+        setCountdown(remainingTime);
+        if (remainingTime <= 0) {
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
       
-      console.log('开始保存到数据库...');
-      const saved = await saveToHistory({
-        question: questionToSave || null,
-        answer: answerToSave || null,
-      });
-      console.log('保存结果:', saved ? '成功' : '失败');
+      // 5秒后自动保存短回答
+      saveTimerRef.current = setTimeout(async () => {
+        clearInterval(countdownInterval);
+        setShowSavePrompt(false);
+        
+        const questionToSave = currentQuestionRef.current;
+        const answerToSave = shortAnswerRef.current;
+        
+        console.log('自动保存短回答 - 问题:', questionToSave, '回答长度:', answerToSave?.length || 0);
+        const saved = await saveToHistory({
+          question: questionToSave || null,
+          answer: answerToSave || null,
+        });
+        console.log('保存结果:', saved ? '成功' : '失败');
+      }, 5000);
       
       setHasConfirmed(true);
       setIsLoading(false);
@@ -984,16 +1121,6 @@ function App() {
         <Tab $active={activeTab === "Compose"} onClick={() => setActiveTab("Compose")}>Compose</Tab>
         <Tab $active={activeTab === "History"} onClick={() => setActiveTab("History")}>History</Tab>
         <FlexSpacer />
-        <SaveOptionContainer>
-          <SaveOptionLabel>保存:</SaveOptionLabel>
-          <SaveOptionSwitch 
-            value={saveOption} 
-            onChange={(e) => setSaveOption(e.target.value as 'short' | 'long')}
-          >
-            <option value="short">短回答</option>
-            <option value="long">长回答</option>
-          </SaveOptionSwitch>
-        </SaveOptionContainer>
         <RefreshButton
           aria-label="刷新回答"
           title="刷新回答"
@@ -1013,30 +1140,41 @@ function App() {
       {activeTab === "History" ? (
         <HistoryContainer>
           <HistoryTitle>History</HistoryTitle>
-          {history.length === 0 ? (
+          {isLoadingHistory ? (
+            <HistoryEmpty>加载中...</HistoryEmpty>
+          ) : dbHistory.length === 0 ? (
             <HistoryEmpty>暂无历史记录</HistoryEmpty>
           ) : (
             <HistoryList>
-              {history.map((h, idx) => (
+              {dbHistory.map((record, idx) => (
                 <HistoryItem
                   key={idx}
                   role="button"
                   tabIndex={0}
                   onClick={(e) => {
-                    setQuestion(h);
-                    setActiveTab("Chat");
-                    focusHeroInput(e as any);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setQuestion(h);
+                    if (record.question) {
+                      setQuestion(record.question);
                       setActiveTab("Chat");
                       focusHeroInput(e as any);
                     }
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (record.question) {
+                        setQuestion(record.question);
+                        setActiveTab("Chat");
+                        focusHeroInput(e as any);
+                      }
+                    }
+                  }}
                 >
-                  {h}
+                  <div style={{ marginBottom: '4px', fontWeight: 600, color: '#1f2937' }}>
+                    {record.question || '(无问题)'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {record.answer || '(无回答)'}
+                  </div>
                 </HistoryItem>
               ))}
             </HistoryList>
@@ -1173,6 +1311,26 @@ function App() {
             </SendLink>
           </InputContainer>
         </>
+      )}
+      
+      {/* 保存提示框 */}
+      {showSavePrompt && (
+        <SavePromptOverlay>
+          <SavePromptBox>
+            <SavePromptTitle>选择保存的回答</SavePromptTitle>
+            <SavePromptMessage>
+              {countdown}秒后将自动保存短回答
+            </SavePromptMessage>
+            <SavePromptButtons>
+              <SavePromptButton onClick={() => handleSaveAnswer('short')} $primary>
+                保存短回答
+              </SavePromptButton>
+              <SavePromptButton onClick={() => handleSaveAnswer('long')}>
+                保存长回答
+              </SavePromptButton>
+            </SavePromptButtons>
+          </SavePromptBox>
+        </SavePromptOverlay>
       )}
     </Container>
   );
