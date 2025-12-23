@@ -2,10 +2,11 @@ import { useState, useRef, useEffect, Fragment } from "react";
 import loadingIconUrl from "./assets/loading.png";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
 import styled, { keyframes } from "styled-components";
-import { CopyOutlined, ReloadOutlined } from "@ant-design/icons";
+import { CopyOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { streamQuestion } from "./client_kn";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { saveToHistory } from "./supabase";
 
 // 样式组件
 const Container = styled.div`
@@ -54,6 +55,38 @@ const RefreshButton = styled.button`
   &:hover {
     background: #f4f7fb;
     color: #5b6b7a;
+  }
+`;
+
+// 保存选项开关
+const SaveOptionContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #5b6b7a;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-left: 8px;
+`;
+
+const SaveOptionLabel = styled.span`
+  font-weight: 500;
+`;
+
+const SaveOptionSwitch = styled.select`
+  border: 1px solid #e0e0e0;
+  background: white;
+  color: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  
+  &:focus {
+    outline: none;
+    border-color: #1890ff;
   }
 `;
 
@@ -395,6 +428,18 @@ const SendIcon = styled(CopyOutlined)`
   }
 `;
 
+const SaveIcon = styled(SaveOutlined)`
+  color: #52c41a;
+  font-size: 16px;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    opacity: 1;
+  }
+`;
+
 // 推荐问题模块样式
 const SuggestionsContainer = styled.div`
   background: white;
@@ -691,8 +736,29 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingFirst, setIsLoadingFirst] = useState<boolean>(false);
   const [isLoadingSecond, setIsLoadingSecond] = useState<boolean>(false);
+  const [saveOption, setSaveOption] = useState<'short' | 'long'>('short'); // 保存选项，默认短回答
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
+  const currentQuestionRef = useRef<string>("");
+  const shortAnswerRef = useRef<string>("");
+  const longAnswerRef = useRef<string>("");
+
+  // 保存回答到 Supabase（type: 'short' | 'long'）
+  const handleSaveAnswer = async (type: 'short' | 'long'): Promise<void> => {
+    const question = currentQuestionRef.current;
+    const answer = type === 'short' ? shortAnswerRef.current : longAnswerRef.current;
+    
+    const success = await saveToHistory({ 
+      question: question || null, 
+      answer: answer || null 
+    });
+    
+    if (success) {
+      alert(`已保存${type === 'short' ? '短' : '长'}回答到数据库`);
+    } else {
+      alert('保存失败，请重试');
+    }
+  };
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -709,7 +775,6 @@ function App() {
 
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
-      // 发送前把问题缓存到历史（去重，最多10条）
       const q = question.trim();
       setHistory((prev) => {
         const next = [q, ...prev.filter((it) => it !== q)];
@@ -717,96 +782,126 @@ function App() {
       });
       setIsLoading(true);
       setIsLoadingFirst(true);
-      setIsLoadingSecond(false);
-      // 新问题开始时清空旧内容
+      setIsLoadingSecond(true);
       setAnswers([]);
       setSuggestions([]);
       hasChunkRef.current = false;
+      currentQuestionRef.current = q;
+      shortAnswerRef.current = "";
+      longAnswerRef.current = "";
 
-      // 每条 completed 消息独立展示，不再使用占位拼接
+      const shortPrompt = buildShortPrompt(q);
+      const longPrompt = buildLongPrompt(q);
 
-      try {
-        // 第一次请求：短答（3句话以内）
-        const shortPrompt = buildShortPrompt(question);
-        const stream = await streamQuestion(shortPrompt);
-        let longStarted = false;
-        let longPromise: Promise<void> | null = null;
-
-        // 超时保护：若 25s 内无片段到达，提示失败
-        const timeoutId = setTimeout(() => {
-          if (!hasChunkRef.current) {
-            setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
-            setIsLoading(false);
+      // 并行请求短答和长答，提升速度
+      const shortTask = (async () => {
+        try {
+          console.log('开始短答请求，问题:', shortPrompt);
+          const stream = await streamQuestion(shortPrompt);
+          console.log('短答 stream 已获取');
+          let accumulatedShort = "";
+          let chunkCount = 0;
+          for await (const text of stream) {
+            chunkCount++;
+            console.log(`短答 chunk ${chunkCount}:`, text);
+            // streamQuestion 直接返回字符串，不需要 extractAssistantText
+            if (!text) continue;
+            const cleaned = cleanRecallSuffix(text);
+            if (!cleaned) continue;
+            hasChunkRef.current = true;
+            if (isRecommendedQuestion(cleaned)) {
+              setSuggestions((prev) => (prev.includes(cleaned) ? prev : [...prev, cleaned]));
+            } else {
+              accumulatedShort = cleaned; // 保存完整回答
+              shortAnswerRef.current = cleaned;
+              setAnswers((prev) => {
+                const newArr = [...prev];
+                newArr[0] = cleaned;
+                return newArr;
+              });
+            }
           }
-        }, 25000);
-
-        // 逐步消费流事件，拼接助手的文本片段
-        for await (const evt of stream) {
-          // 调试输出，便于定位事件结构
-          // eslint-disable-next-line no-console
-          console.debug("Coze stream event:", evt);
-          const chunk = extractAssistantText(evt);
-          if (!chunk) continue;
-          const cleanedChunk = cleanRecallSuffix(chunk);
-          if (!cleanedChunk) continue;
-          hasChunkRef.current = true;
-          // 分类：推荐问题（一句话） vs 正常回答
-          if (isRecommendedQuestion(cleanedChunk)) {
-            setSuggestions((prev) => (prev.includes(cleanedChunk) ? prev : [...prev, cleanedChunk]));
-          } else {
-            // 每条 completed 消息追加一个独立的回答框
-            setAnswers((prev) => [...prev, cleanedChunk]);
-          }
-
-          // 在首次短答片段显示后，触发第二次请求：详细回答（不采集推荐问题）
-          if (!longStarted) {
-            longStarted = true;
-            setIsLoadingSecond(true);
-            const longPrompt = buildLongPrompt(question);
-            longPromise = (async () => {
-              try {
-                const longStream = await streamQuestion(longPrompt);
-                for await (const evt2 of longStream) {
-                  const chunk2 = extractAssistantText(evt2);
-                  if (!chunk2) continue;
-                  hasChunkRef.current = true;
-                  // 仅追加回答，不处理推荐问题；若为一句话推荐则忽略
-                  const cleaned = cleanRecallSuffix(chunk2);
-                  if (!cleaned.trim()) continue;
-                  if (isRecommendedQuestion(cleaned)) {
-                    continue;
-                  }
-                  setAnswers((prev) => [...prev, cleaned]);
-                }
-              } catch (error) {
-                const detail = getErrorMessage(error);
-                console.error("Error calling Coze API (long):", detail);
-                setAnswers((prev) => [...prev, "Error: Failed to get detailed answer"]);
-              } finally {
-                setIsLoadingSecond(false);
-              }
-            })();
-          }
+          console.log('短答完成，总共', chunkCount, '个chunk，内容:', accumulatedShort);
+        } catch (error) {
+          console.error("Error (short):", getErrorMessage(error));
+          setAnswers((prev) => {
+            const newArr = [...prev];
+            newArr[0] = "Error: Failed to get short answer";
+            return newArr;
+          });
+        } finally {
+          setIsLoadingFirst(false);
         }
+      })();
 
-        // 短答流结束，关闭第一个回答的加载提示
-        setIsLoadingFirst(false);
-
-        // 等待第二次请求结束后再取消加载态
-        if (longPromise) {
-          await longPromise;
+      const longTask = (async () => {
+        try {
+          console.log('开始长答请求，问题:', longPrompt);
+          const stream = await streamQuestion(longPrompt);
+          console.log('长答 stream 已获取');
+          let accumulatedLong = "";
+          let chunkCount = 0;
+          for await (const text of stream) {
+            chunkCount++;
+            console.log(`长答 chunk ${chunkCount}:`, text);
+            // streamQuestion 直接返回字符串，不需要 extractAssistantText
+            if (!text) continue;
+            const cleaned = cleanRecallSuffix(text);
+            if (!cleaned || isRecommendedQuestion(cleaned)) continue;
+            hasChunkRef.current = true;
+            accumulatedLong = cleaned; // 保存完整回答
+            longAnswerRef.current = cleaned;
+            setAnswers((prev) => {
+              const newArr = [...prev];
+              newArr[1] = cleaned;
+              return newArr;
+            });
+          }
+          console.log('长答完成，总共', chunkCount, '个chunk，内容:', accumulatedLong);
+        } catch (error) {
+          console.error("Error (long):", getErrorMessage(error));
+          setAnswers((prev) => {
+            const newArr = [...prev];
+            newArr[1] = "Error: Failed to get detailed answer";
+            return newArr;
+          });
+        } finally {
+          setIsLoadingSecond(false);
         }
-        clearTimeout(timeoutId);
-      } catch (error) {
-        const detail = getErrorMessage(error);
-        console.error("Error calling Coze API:", detail);
-        setAnswers((prev) => [...prev, "Error: Failed to get response from bot"]);
-      } finally {
-        setHasConfirmed(true);
-        setIsLoading(false);
-        setIsLoadingFirst(false);
-        setIsLoadingSecond(false);
+      })();
+
+      // 超时保护
+      const timeoutId = setTimeout(() => {
+        if (!hasChunkRef.current) {
+          setAnswers(["Timeout: no response from bot"]);
+          setIsLoading(false);
+        }
+      }, 25000);
+
+      await Promise.all([shortTask, longTask]);
+      clearTimeout(timeoutId);
+      
+      // 根据用户选择自动保存到 Supabase
+      const questionToSave = currentQuestionRef.current;
+      let answerToSave: string | null = null;
+      
+      if (saveOption === 'short') {
+        answerToSave = shortAnswerRef.current;
+        console.log('准备保存短回答 - 问题:', questionToSave, '回答长度:', answerToSave?.length || 0);
+      } else {
+        answerToSave = longAnswerRef.current;
+        console.log('准备保存长回答 - 问题:', questionToSave, '回答长度:', answerToSave?.length || 0);
       }
+      
+      console.log('开始保存到数据库...');
+      const saved = await saveToHistory({
+        question: questionToSave || null,
+        answer: answerToSave || null,
+      });
+      console.log('保存结果:', saved ? '成功' : '失败');
+      
+      setHasConfirmed(true);
+      setIsLoading(false);
     }
   };
 
@@ -889,6 +984,16 @@ function App() {
         <Tab $active={activeTab === "Compose"} onClick={() => setActiveTab("Compose")}>Compose</Tab>
         <Tab $active={activeTab === "History"} onClick={() => setActiveTab("History")}>History</Tab>
         <FlexSpacer />
+        <SaveOptionContainer>
+          <SaveOptionLabel>保存:</SaveOptionLabel>
+          <SaveOptionSwitch 
+            value={saveOption} 
+            onChange={(e) => setSaveOption(e.target.value as 'short' | 'long')}
+          >
+            <option value="short">短回答</option>
+            <option value="long">长回答</option>
+          </SaveOptionSwitch>
+        </SaveOptionContainer>
         <RefreshButton
           aria-label="刷新回答"
           title="刷新回答"
@@ -955,20 +1060,37 @@ function App() {
                   <div className="answer-text">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
                   </div>
-                  <div
-                    className="icon-wrapper"
-                    role="button"
-                    title="复制该回答"
-                    tabIndex={0}
-                    onClick={handleCopyIconClick}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleCopyIconClick(e);
-                      }
-                    }}
-                  >
-                    <SendIcon />
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <div
+                      className="icon-wrapper"
+                      role="button"
+                      title={`保存${index === 0 ? '短' : '长'}回答`}
+                      tabIndex={0}
+                      onClick={() => handleSaveAnswer(index === 0 ? 'short' : 'long')}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleSaveAnswer(index === 0 ? 'short' : 'long');
+                        }
+                      }}
+                    >
+                      <SaveIcon />
+                    </div>
+                    <div
+                      className="icon-wrapper"
+                      role="button"
+                      title="复制该回答"
+                      tabIndex={0}
+                      onClick={handleCopyIconClick}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleCopyIconClick(e);
+                        }
+                      }}
+                    >
+                      <SendIcon />
+                    </div>
                   </div>
                 </AnswerItem>
                 {/* 第一个回答加载提示：在第一个回答下方显示，与第二个提示一致 */}
