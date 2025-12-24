@@ -823,6 +823,7 @@ function App() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [history, setHistory] = useState<string[]>([]);
   const [dbHistory, setDbHistory] = useState<HistoryRecord[]>([]); // Supabase历史记录
+  const [historySearch, setHistorySearch] = useState<string>(""); // 历史记录搜索
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false); // 加载历史记录
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -1077,6 +1078,14 @@ function App() {
     }
   };
 
+  // 过滤历史记录（支持搜索问题和答案）
+  const filteredDbHistory = dbHistory.filter((record) => {
+    const searchLower = historySearch.toLowerCase();
+    const questionMatch = (record.question || "").toLowerCase().includes(searchLower);
+    const answerMatch = (record.answer || "").toLowerCase().includes(searchLower);
+    return questionMatch || answerMatch;
+  });
+
   const copyTextToClipboard = async (text: string): Promise<void> => {
     if (!text || !text.trim()) return;
     try {
@@ -1140,13 +1149,20 @@ function App() {
       {activeTab === "History" ? (
         <HistoryContainer>
           <HistoryTitle>History</HistoryTitle>
+          {/* 搜索框 */}
+          <QuestionInput
+            placeholder="搜索历史记录（问题或答案）..."
+            value={historySearch}
+            onChange={(e) => setHistorySearch(e.target.value)}
+            style={{ marginBottom: '12px', minHeight: '38px' }}
+          />
           {isLoadingHistory ? (
             <HistoryEmpty>加载中...</HistoryEmpty>
-          ) : dbHistory.length === 0 ? (
-            <HistoryEmpty>暂无历史记录</HistoryEmpty>
+          ) : filteredDbHistory.length === 0 ? (
+            <HistoryEmpty>{historySearch ? "未找到匹配的历史记录" : "暂无历史记录"}</HistoryEmpty>
           ) : (
             <HistoryList>
-              {dbHistory.map((record, idx) => (
+              {filteredDbHistory.map((record, idx) => (
                 <HistoryItem
                   key={idx}
                   role="button"
@@ -1155,6 +1171,7 @@ function App() {
                     if (record.question) {
                       setQuestion(record.question);
                       setActiveTab("Chat");
+                      setHistorySearch(""); // 清空搜索
                       focusHeroInput(e as any);
                     }
                   }}
@@ -1164,6 +1181,7 @@ function App() {
                       if (record.question) {
                         setQuestion(record.question);
                         setActiveTab("Chat");
+                        setHistorySearch(""); // 清空搜索
                         focusHeroInput(e as any);
                       }
                     }
