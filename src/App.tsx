@@ -6,7 +6,7 @@ import { CopyOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { streamQuestion } from "./client_kn";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { saveToHistory, getHistory, type HistoryRecord } from "./supabase";
+import { saveToHistory, updateLatestAnswer, getHistory, type HistoryRecord, type TimeFilter } from "./supabase";
 
 // 样式组件
 const Container = styled.div`
@@ -440,74 +440,106 @@ const SaveIcon = styled(SaveOutlined)`
   }
 `;
 
-// 保存提示框
-const SavePromptOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+// 保存选择面板（侧边栏内嵌）
+const SavePanel = styled.div`
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px solid #fde68a;
+  border-left: 3px solid #F4D06F;
+  box-shadow: 0 4px 16px rgba(245, 196, 83, 0.15);
+  animation: slideIn 0.3s ease;
+  position: relative;
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+const SavePanelTitle = styled.div`
+  font-size: 15px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const SavePanelMessage = styled.div`
+  font-size: 13px;
+  color: #78350f;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const SavePanelButtons = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const SavePanelButton = styled.button<{ $primary?: boolean }>`
+  flex: 1;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-`;
-
-const SavePromptBox = styled.div`
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  max-width: 320px;
-  width: 90%;
-`;
-
-const SavePromptTitle = styled.div`
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 12px;
-  text-align: center;
-`;
-
-const SavePromptMessage = styled.div`
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 20px;
-  text-align: center;
-`;
-
-const SavePromptButtons = styled.div`
-  display: flex;
-  gap: 12px;
-`;
-
-const SavePromptButton = styled.button<{ $primary?: boolean }>`
-  flex: 1;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  gap: 6px;
   
   ${({ $primary }) => $primary ? `
-    background: #1890ff;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
     color: white;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    border: 1px solid #f59e0b;
     
     &:hover {
-      background: #40a9ff;
+      background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
     }
   ` : `
-    background: #f3f4f6;
-    color: #374151;
+    background: white;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     
     &:hover {
-      background: #e5e7eb;
+      background: #fffbeb;
+      border-color: #fbbf24;
+      box-shadow: 0 2px 6px rgba(245, 196, 83, 0.15);
     }
   `}
+  
+  &:active {
+    transform: scale(0.98);
+  }
+`;
+
+const CountdownBadge = styled.span`
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px solid #fbbf24;
+  color: #92400e;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.2);
 `;
 
 // 推荐问题模块样式
@@ -635,16 +667,89 @@ const SuggestionChip = styled.button`
 
 // 历史记录样式
 const HistoryContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+`;
+
+const HistoryHeader = styled.div`
+  margin-bottom: 16px;
+`;
+
+const HistoryTitle = styled.div`
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const SearchInputWrapper = styled.div`
+  position: relative;
+  margin-bottom: 8px;
+`;
+
+const SearchIcon = styled.span`
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 14px;
+  pointer-events: none;
+`;
+
+const ClearSearchButton = styled.button`
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+`;
+
+const HistorySearchInput = styled(QuestionInput)`
+  padding-left: 36px;
+  padding-right: 60px;
+  min-height: 42px;
   background: white;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
-  max-height: calc(100vh - 80px);
+  border: 1px solid #e5e7eb;
+  
+  &:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+`;
+
+const HistoryStats = styled.div`
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+`;
+
+const HistoryListWrapper = styled.div`
+  flex: 1;
   overflow-y: auto;
+  margin: 0 -16px;
+  padding: 0 16px;
   
   &::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
   }
 
   &::-webkit-scrollbar-track {
@@ -652,49 +757,511 @@ const HistoryContainer = styled.div`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 2px;
+    background: #d1d5db;
+    border-radius: 3px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: #999;
+    background: #9ca3af;
   }
-`;
-
-const HistoryTitle = styled.div`
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 8px;
 `;
 
 const HistoryList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 `;
 
 const HistoryItem = styled.div`
   display: flex;
   flex-direction: column;
-  background: #fafafa;
-  border: 1px solid #eeeeee;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 13px;
-  color: #1f2937;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
   &:hover {
-    background: #f5f8fc;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    background: linear-gradient(180deg, #f9fafb 0%, #ffffff 100%);
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const HistoryItemQuestion = styled.div`
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  
+  mark {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+`;
+
+const HistoryItemAnswer = styled.div`
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  
+  mark {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 1px 3px;
+    border-radius: 2px;
+  }
+`;
+
+const HistoryItemMeta = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f3f4f6;
+  font-size: 11px;
+  color: #9ca3af;
+`;
+
+const HistoryItemTime = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const HistoryItemActions = styled.div`
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  
+  ${HistoryItem}:hover & {
+    opacity: 1;
+  }
+`;
+
+const HistoryActionButton = styled.button`
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+  }
+`;
+
+const SortButton = styled.button<{ $active?: boolean }>`
+  background: ${({ $active }) => ($active ? "#eff6ff" : "transparent")};
+  border: 1px solid ${({ $active }) => ($active ? "#3b82f6" : "#e5e7eb")};
+  color: ${({ $active }) => ($active ? "#3b82f6" : "#6b7280")};
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  
+  &:hover {
+    background: ${({ $active }) => ($active ? "#dbeafe" : "#f9fafb")};
+    border-color: #3b82f6;
+  }
+`;
+
+const SortOptions = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+`;
+
+const TimeFilterOptions = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+`;
+
+const TimeFilterButton = styled.button<{ $active?: boolean; disabled?: boolean }>`
+  background: ${({ $active, disabled }) => 
+    disabled ? "#f3f4f6" : $active ? "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" : "white"};
+  border: 1px solid ${({ $active, disabled }) => 
+    disabled ? "#e5e7eb" : $active ? "#fbbf24" : "#e5e7eb"};
+  color: ${({ $active, disabled }) => 
+    disabled ? "#9ca3af" : $active ? "#92400e" : "#6b7280"};
+  padding: 8px 4px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: ${({ $active }) => ($active ? 600 : 500)};
+  cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
+  box-shadow: ${({ $active }) => 
+    $active ? "0 2px 8px rgba(251, 191, 36, 0.25)" : "0 1px 3px rgba(0, 0, 0, 0.05)"};
+  
+  span:first-child {
+    font-size: 16px;
+    line-height: 1;
+  }
+  
+  span:last-child {
+    line-height: 1;
+    white-space: nowrap;
+  }
+  
+  &:hover {
+    background: ${({ $active, disabled }) => 
+      disabled ? "#f3f4f6" : $active ? "linear-gradient(135deg, #fde68a 0%, #fcd34d 100%)" : "#fffbeb"};
+    border-color: ${({ disabled }) => (disabled ? "#e5e7eb" : "#fbbf24")};
+    transform: ${({ disabled }) => (disabled ? "none" : "translateY(-1px)")};
+    box-shadow: ${({ $active, disabled }) => 
+      disabled ? "0 1px 3px rgba(0, 0, 0, 0.05)" : 
+      $active ? "0 4px 12px rgba(251, 191, 36, 0.35)" : "0 2px 6px rgba(245, 196, 83, 0.15)"};
+  }
+  
+  &:active {
+    transform: ${({ disabled }) => (disabled ? "none" : "scale(0.98)")};
+  }
+`;
+
+const TimeFilterHint = styled.div`
+  font-size: 11px;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 3px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.5;
+  
+  a {
+    color: #f59e0b;
+    text-decoration: underline;
+    font-weight: 600;
+    
+    &:hover {
+      color: #d97706;
+    }
   }
 `;
 
 const HistoryEmpty = styled.div`
-  font-size: 13px;
-  color: #8a9aa9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #9ca3af;
+`;
+
+const HistoryEmptyIcon = styled.div`
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+`;
+
+const HistoryEmptyText = styled.div`
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 4px;
+`;
+
+const HistoryEmptyHint = styled.div`
+  font-size: 12px;
+  color: #9ca3af;
+`;
+
+// 历史详情弹窗样式
+const HistoryDetailOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+`;
+
+const HistoryDetailModal = styled.div`
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+const HistoryDetailHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const HistoryDetailTitle = styled.div`
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const HistoryDetailClose = styled.button`
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  line-height: 1;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+`;
+
+const HistoryDetailContent = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+`;
+
+const HistoryDetailSection = styled.div`
+  margin-bottom: 24px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const HistoryDetailLabel = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const HistoryDetailText = styled.div`
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.6;
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  &.answer {
+    background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
+    border-color: #bfdbfe;
+    
+    /* Markdown 样式 */
+    h1, h2, h3 {
+      color: #0f172a;
+      font-weight: 600;
+      margin: 12px 0 8px;
+      line-height: 1.3;
+    }
+    h1 { font-size: 18px; }
+    h2 { font-size: 16px; }
+    h3 { font-size: 15px; }
+
+    p { margin: 8px 0; }
+
+    ul, ol { margin: 8px 0 8px 20px; }
+    li { margin: 4px 0; }
+
+    a {
+      color: #3b82f6;
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: #f3f5f7;
+      border: 1px solid #e6e8eb;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 13px;
+      color: #0f172a;
+    }
+    
+    pre {
+      background: #0f172a;
+      color: #e6edf3;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      margin: 12px 0;
+      border: 1px solid #0b1b35;
+    }
+    
+    pre code {
+      background: transparent;
+      border: none;
+      color: inherit;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    blockquote {
+      background: #f8fafc;
+      border-left: 3px solid #3b82f6;
+      color: #334155;
+      margin: 12px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+    
+    hr {
+      border: none;
+      border-top: 1px dashed #e5e7eb;
+      margin: 16px 0;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+    }
+    
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    
+    th {
+      background: #f3f6fb;
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 12px 0;
+      border-radius: 8px;
+    }
+  }
+`;
+
+const HistoryDetailFooter = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 0 0 16px 16px;
+`;
+
+const HistoryDetailButton = styled.button<{ $primary?: boolean }>`
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid ${({ $primary }) => ($primary ? "#3b82f6" : "#e5e7eb")};
+  background: ${({ $primary }) => ($primary ? "#3b82f6" : "white")};
+  color: ${({ $primary }) => ($primary ? "white" : "#6b7280")};
+
+  &:hover {
+    background: ${({ $primary }) => ($primary ? "#2563eb" : "#f9fafb")};
+    border-color: ${({ $primary }) => ($primary ? "#2563eb" : "#3b82f6")};
+    color: ${({ $primary }) => ($primary ? "white" : "#3b82f6")};
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
 `;
 
 // 流式输出：使用 Coze API 的 stream 接口逐步渲染回答
@@ -823,7 +1390,11 @@ function App() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [history, setHistory] = useState<string[]>([]);
   const [dbHistory, setDbHistory] = useState<HistoryRecord[]>([]); // Supabase历史记录
+  const [hasCreatedAtColumn, setHasCreatedAtColumn] = useState<boolean>(true); // 表是否有 created_at 列
   const [historySearch, setHistorySearch] = useState<string>(""); // 历史记录搜索
+  const [historySortBy, setHistorySortBy] = useState<"time" | "relevance">("time"); // 排序方式
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<TimeFilter>("all"); // 时间筛选
+  const [selectedHistory, setSelectedHistory] = useState<HistoryRecord | null>(null); // 选中的历史记录
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false); // 加载历史记录
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -839,13 +1410,29 @@ function App() {
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 从 Supabase 加载历史记录
-  const loadHistory = async () => {
-    console.log('App: 开始加载历史记录...');
+  const loadHistory = async (timeFilter: TimeFilter = historyTimeFilter) => {
+    console.log('App: 开始加载历史记录，时间筛选:', timeFilter);
     setIsLoadingHistory(true);
     try {
-      const records = await getHistory();
+      const records = await getHistory(timeFilter);
       console.log('App: 获取到', records.length, '条历史记录');
       setDbHistory(records);
+      
+      // 检查是否有时间字段（time 或 created_at）
+      if (records.length > 0) {
+        const hasTime = records[0].time || records[0].created_at;
+        console.log('检测时间字段:', { time: records[0].time, created_at: records[0].created_at, hasTime });
+        setHasCreatedAtColumn(!!hasTime);
+        
+        // 如果没有时间列，重置时间筛选为 "all"
+        if (!hasTime && timeFilter !== 'all') {
+          setHistoryTimeFilter('all');
+        }
+      } else {
+        // 如果没有记录，假设有时间列（避免误判）
+        console.log('没有历史记录，假设有时间列');
+        setHasCreatedAtColumn(true);
+      }
     } catch (error) {
       console.error('App: 加载历史记录失败:', error);
       if (error instanceof Error) {
@@ -856,13 +1443,14 @@ function App() {
     }
   };
 
-  // 当切换到 History 标签时加载历史记录
+  // 当切换到 History 标签或时间筛选改变时加载历史记录
   useEffect(() => {
     if (activeTab === 'History') {
-      console.log('切换到 History 标签，触发加载');
-      loadHistory();
+      console.log('切换到 History 标签或时间筛选改变，触发加载');
+      loadHistory(historyTimeFilter);
     }
-  }, [activeTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, historyTimeFilter]);
 
   // 保存回答到 Supabase（type: 'short' | 'long'）
   const handleSaveAnswer = async (type: 'short' | 'long'): Promise<void> => {
@@ -876,16 +1464,11 @@ function App() {
     const question = currentQuestionRef.current;
     const answer = type === 'short' ? shortAnswerRef.current : longAnswerRef.current;
     
-    const success = await saveToHistory({ 
-      question: question || null, 
-      answer: answer || null 
-    });
+    // 使用更新函数而不是插入新记录
+    const success = await updateLatestAnswer(question || '', answer || '');
     
-    if (success) {
-      alert(`已保存${type === 'short' ? '短' : '长'}回答到数据库`);
-    } else {
-      alert('保存失败，请重试');
-    }
+    // 静默保存，不显示弹窗
+    console.log(success ? `✓ 已保存${type === 'short' ? '短' : '长'}回答` : '✗ 保存失败');
   };
 
   const adjustHeight = (): void => {
@@ -904,6 +1487,8 @@ function App() {
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
       const q = question.trim();
+      const questionTime = new Date(); // 记录提问时间
+      
       setHistory((prev) => {
         const next = [q, ...prev.filter((it) => it !== q)];
         return next.slice(0, 10);
@@ -917,6 +1502,14 @@ function App() {
       currentQuestionRef.current = q;
       shortAnswerRef.current = "";
       longAnswerRef.current = "";
+
+      // 立即保存问题和提问时间到数据库
+      console.log('保存问题到数据库，时间:', questionTime.toISOString());
+      await saveToHistory({
+        question: q,
+        answer: null, // 先保存问题，答案稍后更新
+        time: questionTime,
+      });
 
       const shortPrompt = buildShortPrompt(q);
       const longPrompt = buildLongPrompt(q);
@@ -1031,10 +1624,8 @@ function App() {
         const answerToSave = shortAnswerRef.current;
         
         console.log('自动保存短回答 - 问题:', questionToSave, '回答长度:', answerToSave?.length || 0);
-        const saved = await saveToHistory({
-          question: questionToSave || null,
-          answer: answerToSave || null,
-        });
+        // 使用更新函数而不是插入新记录
+        const saved = await updateLatestAnswer(questionToSave || '', answerToSave || '');
         console.log('保存结果:', saved ? '成功' : '失败');
       }, 5000);
       
@@ -1078,13 +1669,87 @@ function App() {
     }
   };
 
-  // 过滤历史记录（支持搜索问题和答案）
-  const filteredDbHistory = dbHistory.filter((record) => {
-    const searchLower = historySearch.toLowerCase();
-    const questionMatch = (record.question || "").toLowerCase().includes(searchLower);
-    const answerMatch = (record.answer || "").toLowerCase().includes(searchLower);
-    return questionMatch || answerMatch;
-  });
+  // 高亮搜索关键词
+  const highlightText = (text: string, search: string): React.ReactElement => {
+    if (!search.trim()) return <>{text}</>;
+    
+    const parts = text.split(new RegExp(`(${search})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) => 
+          part.toLowerCase() === search.toLowerCase() ? (
+            <mark key={i}>{part}</mark>
+          ) : (
+            <Fragment key={i}>{part}</Fragment>
+          )
+        )}
+      </>
+    );
+  };
+
+  // 计算相关性分数
+  const calculateRelevance = (record: HistoryRecord, search: string): number => {
+    if (!search.trim()) return 0;
+    const searchLower = search.toLowerCase();
+    const question = (record.question || "").toLowerCase();
+    const answer = (record.answer || "").toLowerCase();
+    
+    let score = 0;
+    // 问题标题匹配权重更高
+    if (question.includes(searchLower)) {
+      score += question.startsWith(searchLower) ? 10 : 5;
+    }
+    // 答案匹配
+    if (answer.includes(searchLower)) {
+      score += 2;
+    }
+    return score;
+  };
+
+  // 过滤和排序历史记录
+  const filteredDbHistory = dbHistory
+    .filter((record) => {
+      if (!historySearch.trim()) return true;
+      const searchLower = historySearch.toLowerCase();
+      const questionMatch = (record.question || "").toLowerCase().includes(searchLower);
+      const answerMatch = (record.answer || "").toLowerCase().includes(searchLower);
+      return questionMatch || answerMatch;
+    })
+    .sort((a, b) => {
+      if (historySortBy === "relevance" && historySearch.trim()) {
+        return calculateRelevance(b, historySearch) - calculateRelevance(a, historySearch);
+      }
+      // 按时间排序（假设有 created_at 字段，否则按数组顺序）
+      return 0; // 保持原顺序
+    });
+
+  // 格式化时间
+  const formatTime = (timestamp?: string | Date): string => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    
+    // 检查日期是否有效
+    if (isNaN(date.getTime())) return "";
+    
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return "刚刚";
+    if (minutes < 60) return `${minutes}分钟前`;
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 7) return `${days}天前`;
+    if (days < 30) return `${Math.floor(days / 7)}周前`;
+    
+    // 超过30天显示具体日期
+    return date.toLocaleDateString('zh-CN', { 
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
 
   const copyTextToClipboard = async (text: string): Promise<void> => {
     if (!text || !text.trim()) return;
@@ -1148,61 +1813,215 @@ function App() {
       </TopBar>
       {activeTab === "History" ? (
         <HistoryContainer>
-          <HistoryTitle>History</HistoryTitle>
-          {/* 搜索框 */}
-          <QuestionInput
-            placeholder="搜索历史记录（问题或答案）..."
-            value={historySearch}
-            onChange={(e) => setHistorySearch(e.target.value)}
-            style={{ marginBottom: '12px', minHeight: '38px' }}
-          />
-          {isLoadingHistory ? (
-            <HistoryEmpty>加载中...</HistoryEmpty>
-          ) : filteredDbHistory.length === 0 ? (
-            <HistoryEmpty>{historySearch ? "未找到匹配的历史记录" : "暂无历史记录"}</HistoryEmpty>
-          ) : (
-            <HistoryList>
-              {filteredDbHistory.map((record, idx) => (
-                <HistoryItem
-                  key={idx}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    if (record.question) {
-                      setQuestion(record.question);
-                      setActiveTab("Chat");
-                      setHistorySearch(""); // 清空搜索
-                      focusHeroInput(e as any);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      if (record.question) {
-                        setQuestion(record.question);
-                        setActiveTab("Chat");
-                        setHistorySearch(""); // 清空搜索
-                        focusHeroInput(e as any);
-                      }
-                    }
-                  }}
+          <HistoryHeader>
+            <HistoryTitle>
+              <span>📚</span>
+              <span>历史记录</span>
+            </HistoryTitle>
+            
+            {/* 时间筛选选项 - 只在有时间字段时显示 */}
+            {hasCreatedAtColumn ? (
+              <TimeFilterOptions>
+                <TimeFilterButton
+                  $active={historyTimeFilter === "all"}
+                  onClick={() => setHistoryTimeFilter("all")}
                 >
-                  <div style={{ marginBottom: '4px', fontWeight: 600, color: '#1f2937' }}>
-                    {record.question || '(无问题)'}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {record.answer || '(无回答)'}
-                  </div>
-                </HistoryItem>
-              ))}
-            </HistoryList>
-          )}
+                  <span>📅</span>
+                  <span>全部</span>
+                </TimeFilterButton>
+                <TimeFilterButton
+                  $active={historyTimeFilter === "today"}
+                  onClick={() => setHistoryTimeFilter("today")}
+                >
+                  <span>☀️</span>
+                  <span>今天</span>
+                </TimeFilterButton>
+                <TimeFilterButton
+                  $active={historyTimeFilter === "week"}
+                  onClick={() => setHistoryTimeFilter("week")}
+                >
+                  <span>📆</span>
+                  <span>本周</span>
+                </TimeFilterButton>
+                <TimeFilterButton
+                  $active={historyTimeFilter === "month"}
+                  onClick={() => setHistoryTimeFilter("month")}
+                >
+                  <span>📊</span>
+                  <span>本月</span>
+                </TimeFilterButton>
+              </TimeFilterOptions>
+            ) : (
+              <TimeFilterHint>
+                <span>⚠️</span>
+                <span>数据库缺少时间字段，无法按时间筛选。<a href="SUPABASE_SETUP.md" target="_blank" style={{ color: '#f59e0b', textDecoration: 'underline' }}>查看设置指南</a></span>
+              </TimeFilterHint>
+            )}
+            
+            <SearchInputWrapper>
+              <SearchIcon>🔍</SearchIcon>
+              <HistorySearchInput
+                placeholder="搜索问题或答案..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+              {historySearch && (
+                <ClearSearchButton
+                  onClick={() => setHistorySearch("")}
+                  aria-label="清空搜索"
+                >
+                  清空
+                </ClearSearchButton>
+              )}
+            </SearchInputWrapper>
+            
+            {/* 排序选项 */}
+            {historySearch && filteredDbHistory.length > 0 && (
+              <SortOptions>
+                <SortButton
+                  $active={historySortBy === "relevance"}
+                  onClick={() => setHistorySortBy("relevance")}
+                >
+                  <span>🎯</span>
+                  <span>相关性</span>
+                </SortButton>
+                <SortButton
+                  $active={historySortBy === "time"}
+                  onClick={() => setHistorySortBy("time")}
+                >
+                  <span>🕐</span>
+                  <span>时间</span>
+                </SortButton>
+              </SortOptions>
+            )}
+            
+            {!isLoadingHistory && filteredDbHistory.length > 0 && (
+              <HistoryStats>
+                {historySearch
+                  ? `找到 ${filteredDbHistory.length} 条匹配记录`
+                  : `共 ${dbHistory.length} 条历史记录（最多显示50条）`}
+              </HistoryStats>
+            )}
+          </HistoryHeader>
+
+          <HistoryListWrapper>
+            {isLoadingHistory ? (
+              <HistoryEmpty>
+                <HistoryEmptyIcon>⏳</HistoryEmptyIcon>
+                <HistoryEmptyText>加载中...</HistoryEmptyText>
+              </HistoryEmpty>
+            ) : filteredDbHistory.length === 0 ? (
+              <HistoryEmpty>
+                <HistoryEmptyIcon>{historySearch ? "🔍" : "📭"}</HistoryEmptyIcon>
+                <HistoryEmptyText>
+                  {historySearch ? "未找到匹配的历史记录" : "暂无历史记录"}
+                </HistoryEmptyText>
+                <HistoryEmptyHint>
+                  {historySearch ? "试试其他关键词" : "开始对话后会自动保存"}
+                </HistoryEmptyHint>
+              </HistoryEmpty>
+            ) : (
+              <HistoryList>
+                {filteredDbHistory.map((record, idx) => (
+                  <HistoryItem
+                    key={idx}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      // 阻止按钮点击事件冒泡
+                      if ((e.target as HTMLElement).closest('button')) {
+                        return;
+                      }
+                      // 打开详情弹窗
+                      setSelectedHistory(record);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedHistory(record);
+                      }
+                    }}
+                  >
+                    <HistoryItemQuestion>
+                      {highlightText(record.question || "(无问题)", historySearch)}
+                    </HistoryItemQuestion>
+                    <HistoryItemAnswer>
+                      {highlightText(record.answer || "(无回答)", historySearch)}
+                    </HistoryItemAnswer>
+                    <HistoryItemMeta>
+                      <HistoryItemTime>
+                        <span>🕐</span>
+                        <span>{formatTime(record.created_at)}</span>
+                      </HistoryItemTime>
+                      <HistoryItemActions>
+                        <HistoryActionButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedHistory(record);
+                          }}
+                          title="查看详情"
+                        >
+                          👁️ 查看
+                        </HistoryActionButton>
+                        <HistoryActionButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyTextToClipboard(record.question || "");
+                          }}
+                          title="复制问题"
+                        >
+                          📋 复制
+                        </HistoryActionButton>
+                        <HistoryActionButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (record.question) {
+                              setQuestion(record.question);
+                              setActiveTab("Chat");
+                              setHistorySearch("");
+                            }
+                          }}
+                          title="重新提问"
+                        >
+                          🔄 重问
+                        </HistoryActionButton>
+                      </HistoryItemActions>
+                    </HistoryItemMeta>
+                  </HistoryItem>
+                ))}
+              </HistoryList>
+            )}
+          </HistoryListWrapper>
         </HistoryContainer>
       ) : (
         <>
           {/* 欢迎区与卡片已移除，下面直接展示回答与输入区域 */}
 
           <AnswersContainer>
+            {/* 保存选择面板 */}
+            {showSavePrompt && (
+              <SavePanel>
+                <SavePanelTitle>
+                  <span>💾</span>
+                  <span>选择保存的回答</span>
+                </SavePanelTitle>
+                <SavePanelMessage>
+                  <span>⏱️</span>
+                  <span>
+                    <CountdownBadge>{countdown}秒</CountdownBadge> 后自动保存短回答
+                  </span>
+                </SavePanelMessage>
+                <SavePanelButtons>
+                  <SavePanelButton onClick={() => handleSaveAnswer('short')} $primary>
+                    💬 保存短回答
+                  </SavePanelButton>
+                  <SavePanelButton onClick={() => handleSaveAnswer('long')}>
+                    📝 保存长回答
+                  </SavePanelButton>
+                </SavePanelButtons>
+              </SavePanel>
+            )}
+            
             {/* 第一个回答加载提示：在尚未产生任何回答时显示在顶部 */}
             {isLoadingFirst && answers.length === 0 && (
               <LoadingNotice>
@@ -1330,25 +2149,95 @@ function App() {
           </InputContainer>
         </>
       )}
-      
-      {/* 保存提示框 */}
-      {showSavePrompt && (
-        <SavePromptOverlay>
-          <SavePromptBox>
-            <SavePromptTitle>选择保存的回答</SavePromptTitle>
-            <SavePromptMessage>
-              {countdown}秒后将自动保存短回答
-            </SavePromptMessage>
-            <SavePromptButtons>
-              <SavePromptButton onClick={() => handleSaveAnswer('short')} $primary>
-                保存短回答
-              </SavePromptButton>
-              <SavePromptButton onClick={() => handleSaveAnswer('long')}>
-                保存长回答
-              </SavePromptButton>
-            </SavePromptButtons>
-          </SavePromptBox>
-        </SavePromptOverlay>
+
+      {/* 历史详情弹窗 */}
+      {selectedHistory && (
+        <HistoryDetailOverlay
+          onClick={() => setSelectedHistory(null)}
+        >
+          <HistoryDetailModal
+            onClick={(e) => e.stopPropagation()}
+          >
+            <HistoryDetailHeader>
+              <HistoryDetailTitle>
+                <span>💬</span>
+                <span>对话详情</span>
+              </HistoryDetailTitle>
+              <HistoryDetailClose
+                onClick={() => setSelectedHistory(null)}
+                aria-label="关闭"
+              >
+                ×
+              </HistoryDetailClose>
+            </HistoryDetailHeader>
+
+            <HistoryDetailContent>
+              <HistoryDetailSection>
+                <HistoryDetailLabel>
+                  <span>❓</span>
+                  <span>问题</span>
+                </HistoryDetailLabel>
+                <HistoryDetailText>
+                  {selectedHistory.question || "(无问题)"}
+                </HistoryDetailText>
+              </HistoryDetailSection>
+
+              <HistoryDetailSection>
+                <HistoryDetailLabel>
+                  <span>💡</span>
+                  <span>回答</span>
+                </HistoryDetailLabel>
+                <HistoryDetailText className="answer">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {selectedHistory.answer || "(无回答)"}
+                  </ReactMarkdown>
+                </HistoryDetailText>
+              </HistoryDetailSection>
+
+              {selectedHistory.created_at && (
+                <HistoryDetailSection>
+                  <HistoryDetailLabel>
+                    <span>🕐</span>
+                    <span>时间</span>
+                  </HistoryDetailLabel>
+                  <HistoryDetailText>
+                    {formatTime(selectedHistory.created_at)}
+                  </HistoryDetailText>
+                </HistoryDetailSection>
+              )}
+            </HistoryDetailContent>
+
+            <HistoryDetailFooter>
+              <HistoryDetailButton
+                onClick={() => {
+                  copyTextToClipboard(selectedHistory.question || "");
+                }}
+              >
+                📋 复制问题
+              </HistoryDetailButton>
+              <HistoryDetailButton
+                onClick={() => {
+                  copyTextToClipboard(selectedHistory.answer || "");
+                }}
+              >
+                📋 复制答案
+              </HistoryDetailButton>
+              <HistoryDetailButton
+                $primary
+                onClick={() => {
+                  if (selectedHistory.question) {
+                    setQuestion(selectedHistory.question);
+                    setActiveTab("Chat");
+                    setSelectedHistory(null);
+                    setHistorySearch("");
+                  }
+                }}
+              >
+                🔄 重新提问
+              </HistoryDetailButton>
+            </HistoryDetailFooter>
+          </HistoryDetailModal>
+        </HistoryDetailOverlay>
       )}
     </Container>
   );
