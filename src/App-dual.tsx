@@ -12,19 +12,16 @@ const Container = styled.div`
   width: 360px;
   height: 100vh;
   padding: 12px;
-  /* 禁用外层滚动，仅内部区域滚动 */
   overflow: hidden;
   background: #ffffff;
   border-radius: 14px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid #eef2f6;
   display: flex;
   flex-direction: column;
 `;
 
-// 顶部标签栏（仿 Bing：Chat / Compose / History）
 const TopBar = styled.div`
   display: flex;
   align-items: center;
@@ -35,7 +32,6 @@ const TopBar = styled.div`
   margin-bottom: 10px;
 `;
 
-// 顶部栏右侧区域与刷新按钮样式
 const FlexSpacer = styled.div`
   flex: 1;
 `;
@@ -93,8 +89,6 @@ const InputContainer = styled.div`
   gap: 8px;
   margin-bottom: 16px;
   align-items: flex-start;
-  /* 移除内嵌 Enter 图标的定位上下文 */
-  /* 底部粘性，始终可见 */
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -108,11 +102,11 @@ const QuestionInput = styled.textarea`
   border-radius: 8px;
   font-size: 14px;
   background: white;
-  color: #333; /* 显式设置文字颜色，避免白底白字不可见 */
+  color: #333;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
   transition: all 0.3s ease;
   min-height: 42px;
-  max-height: 126px; /* 5行文本的最大高度：14px * 1.5 * 5 + 10px * 2 = 126px */
+  max-height: 126px;
   resize: none;
   line-height: 1.5;
   font-family: inherit;
@@ -120,7 +114,6 @@ const QuestionInput = styled.textarea`
   margin: 0;
   overflow-y: auto;
 
-  /* 自定义滚动条样式 */
   &::-webkit-scrollbar {
     width: 4px;
   }
@@ -139,8 +132,8 @@ const QuestionInput = styled.textarea`
   }
 
   &::placeholder {
-    color: #334155; /* 与 HeroCardText 保持一致 */
-    font-size: 13px; /* 与卡片文字同尺寸 */
+    color: #334155;
+    font-size: 13px;
     font-weight: 400;
   }
 
@@ -151,7 +144,6 @@ const QuestionInput = styled.textarea`
   }
 `;
 
-// 与 Hero 区右侧链接（Try it）一致的样式，用于发送
 const SendLink = styled.a`
   color: #0b57d0;
   text-decoration: none;
@@ -162,18 +154,13 @@ const SendLink = styled.a`
   &:hover { text-decoration: underline; }
 `;
 
-/* 删除 EnterOverlay 内嵌提示样式 */
-
-
 const AnswersContainer = styled.div`
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   padding-right: 4px;
   margin-right: -4px;
-  /* 填充剩余空间，让输入区保持在底部 */
   flex: 1 1 auto;
 
-  /* 自定义滚动条样式 */
   &::-webkit-scrollbar {
     width: 4px;
   }
@@ -216,13 +203,13 @@ const AnswerItem = styled.div`
   cursor: pointer;
   transition: all 0.25s ease;
   box-shadow: 0 2px 10px rgba(245, 196, 83, 0.05);
-  border-left: 3px solid #F4D06F; /* 柔和金黄 */
+  border-left: 3px solid #F4D06F;
 
   &:hover {
-    border-color: #fde68a; /* 浅金黄边框 */
+    border-color: #fde68a;
     box-shadow: 0 6px 16px rgba(245, 196, 83, 0.18);
     transform: translateY(-1px);
-    background: linear-gradient(180deg, #fff7e6 0%, #ffffff 100%); /* 悬停渐变改为暖金黄 */
+    background: linear-gradient(180deg, #fff7e6 0%, #ffffff 100%);
   }
 
   .answer-text {
@@ -309,7 +296,6 @@ const AnswerItem = styled.div`
       color: #0f172a;
     }
 
-    /* 使 Markdown 图片适应侧栏宽度 */
     img {
       max-width: 100%;
       height: auto;
@@ -341,7 +327,6 @@ const AnswerItem = styled.div`
   }
 `;
 
-// 第二回答加载提示样式（显示在第一个回答下方）
 const LoadingNotice = styled.div`
   color: #68707a;
   font-size: 13px;
@@ -427,72 +412,19 @@ const SuggestionText = styled.div`
   color: #1f2937;
 `;
 
-
-// 欢迎区与功能卡片（仿图示布局）
-
 const Emoji = styled.span`
   font-size: 18px;
 `;
 
-
-// 历史记录样式
-const HistoryContainer = styled.div`
-  background: white;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
-`;
-
-const HistoryTitle = styled.div`
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 8px;
-`;
-
-const HistoryList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`;
-
-const HistoryItem = styled.div`
-  display: flex;
-  align-items: center;
-  background: #fafafa;
-  border: 1px solid #eeeeee;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: #1f2937;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: #f5f8fc;
-    transform: translateY(-1px);
-  }
-`;
-
-const HistoryEmpty = styled.div`
-  font-size: 13px;
-  color: #8a9aa9;
-`;
-
-// 流式输出：使用 Coze API 的 stream 接口逐步渲染回答
-// 在 handleConfirm 中驱动状态更新以实现增量显示
-// 兼容不同事件结构并增强错误可观测性
+// 辅助函数
 const extractAssistantText = (event: any): string | null => {
-  // 若封装直接返回字符串（仅完成的纯文本），直接使用
   if (typeof event === "string") {
     return event;
   }
 
-  // 优先解析官方流事件形态：evt.data.content
   if (event && typeof event === "object") {
     const content = event?.data?.content;
     if (typeof content === "string" && content.length) {
-      // 排除明显是知识回溯/事件的 JSON 内容
       if (content.trim().startsWith("{")) {
         try {
           const obj = JSON.parse(content);
@@ -519,7 +451,6 @@ const extractAssistantText = (event: any): string | null => {
     try {
       const obj = JSON.parse(raw);
       if (obj && typeof obj === "object") {
-        // 过滤事件完成类消息
         if (
           obj.msg_type === "generate_answer_finish" ||
           obj.msg_type === "event" ||
@@ -527,7 +458,6 @@ const extractAssistantText = (event: any): string | null => {
         ) {
           return null;
         }
-        // 若包含真实文本内容
         if (obj.content && typeof obj.content === "string") {
           raw = obj.content;
         }
@@ -543,7 +473,6 @@ const extractAssistantText = (event: any): string | null => {
   return null;
 };
 
-// 识别是否为推荐问题：单段文本且以问号结尾
 const isRecommendedQuestion = (text: string): boolean => {
   const t = (text || "").trim();
   if (!t) return false;
@@ -552,42 +481,33 @@ const isRecommendedQuestion = (text: string): boolean => {
   return endsWithQuestion && paragraphs.length < 2;
 };
 
-// 清理知识回溯/来源标记
-// 覆盖：^^[recall slice ...]、^^(recall slice ...)、^^（recall slice ...）、以及“答案来自知识库 ^^”变体
 const cleanRecallSuffix = (text: string): string => {
   if (!text || typeof text !== "string") return text || "";
   let t = text;
-  // 全局移除，不仅限结尾
-  t = t.replace(/\s*\^{2}\s*\[[^\]]*recall\s*slice[^\]]*\]\s*/gi, ""); // 方括号
-  t = t.replace(/\s*\^{2}\s*\([^)]*recall\s*slice[^)]*\)\s*/gi, "");    // 英文圆括号
-  t = t.replace(/\s*\^{2}\s*（[^）]*recall\s*slice[^）]*）\s*/gi, "");     // 中文圆括号
-  // 清理来源提示语（中英文）
+  t = t.replace(/\s*\^{2}\s*\[[^\]]*recall\s*slice[^\]]*\]\s*/gi, "");
+  t = t.replace(/\s*\^{2}\s*\([^)]*recall\s*slice[^)]*\)\s*/gi, "");
+  t = t.replace(/\s*\^{2}\s*（[^）]*recall\s*slice[^）]*）\s*/gi, "");
   t = t.replace(/\s*答案来自知识库\s*\^{2}\s*/gi, "");
   t = t.replace(/\s*来源于知识库\s*\^{2}\s*/gi, "");
   t = t.replace(/\s*Answer\s*from\s*knowledge\s*base\s*\^{2}\s*/gi, "");
-  // 清理零散的 ^^ 标记
   t = t.replace(/\s*\^{2}\s*/g, " ");
   return t.trim();
 };
 
-// 为推荐问题提供不重复的灵动表情符号（新批次）
 const emojiPool = [
   "🔎", "🚀", "📚", "🧪", "🎯", "💬", "🧭", "🧩", "📈", "🛠️",
   "🌟", "🗣️", "🪄", "🖼️", "🎧", "🛰️", "🗺️", "🔬", "✏️", "📖",
   "💡", "📝", "🧠", "🎨", "🧮", "🔧", "🔮", "🧵", "🌀", "🪙"
 ];
-// 推荐问题前三项使用与 Hero 卡片一致的图标
 const heroEmojis: string[] = ["🧠", "🎨", "✍️"];
 const getSuggestionEmoji = (index: number): string => {
   if (index >= 0 && index < heroEmojis.length) return heroEmojis[index];
   return emojiPool[index] ?? "🪄";
 };
 
-// 构建两种提示语 - 优化版本
-const buildShortPrompt = (q: string): string => `${q}（简短回答）`; // 从"3句话以内"改为"简短回答"
-const buildLongPrompt = (q: string): string => `${q}`; // 去掉"详细回答"限制，让AI自然发挥
+const buildShortPrompt = (q: string): string => `${q}（3句话以内）`;
+const buildLongPrompt = (q: string): string => `${q}（详细回答）`;
 
-// 统一规范化错误为可打印字符串
 const getErrorMessage = (error: unknown): string => {
   if (typeof error === "string") return error;
   if (error && typeof error === "object") {
@@ -598,54 +518,17 @@ const getErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
-// 历史记录存储 key 和最大条数
-const HISTORY_STORAGE_KEY = '__coze_chat_history__';
-const HISTORY_MAX_COUNT = 20;
-
-// 从 localStorage 加载历史记录
-function loadHistory(): string[] {
-  try {
-    const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed.slice(0, HISTORY_MAX_COUNT);
-      }
-    }
-  } catch {
-    // 忽略解析错误
-  }
-  return [];
-}
-
-// 保存历史记录到 localStorage
-function saveHistory(history: string[]): void {
-  try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(0, HISTORY_MAX_COUNT)));
-  } catch {
-    // 忽略存储错误
-  }
-}
-
 function App() {
-  const [activeTab, setActiveTab] = useState<"Chat" | "History">("Chat");
   const [question, setQuestion] = useState<string>("");
   // 分别存储短答和长答
-  const [shortAnswers, setShortAnswers] = useState<string[]>([]);
-  const [longAnswers, setLongAnswers] = useState<string[]>([]);
+  const [shortAnswer, setShortAnswer] = useState<string>("");
+  const [longAnswer, setLongAnswer] = useState<string>("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [history, setHistory] = useState<string[]>(loadHistory);
-  const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingShort, setIsLoadingShort] = useState<boolean>(false);
   const [isLoadingLong, setIsLoadingLong] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasChunkRef = useRef<boolean>(false);
-
-  // 当 history 变化时保存到 localStorage
-  useEffect(() => {
-    saveHistory(history);
-  }, [history]);
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -663,41 +546,35 @@ function App() {
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
       const q = question.trim();
-      setHistory((prev) => {
-        const filtered = prev.filter((it) => it !== q);
-        const next = [q, ...filtered];
-        return next.slice(0, HISTORY_MAX_COUNT);
-      });
       setQuestion("");
       setIsLoading(true);
       setIsLoadingShort(true);
       setIsLoadingLong(true);
       // 清空旧内容
-      setShortAnswers([]);
-      setLongAnswers([]);
+      setShortAnswer("");
+      setLongAnswer("");
       setSuggestions([]);
       hasChunkRef.current = false;
 
       try {
-        // 超时保护：缩短到 20 秒
         const timeoutId = setTimeout(() => {
           if (!hasChunkRef.current) {
-            setShortAnswers((prev) => [...prev, "Timeout: no response from bot"]);
+            setShortAnswer("Timeout: no response from bot");
             setIsLoading(false);
           }
-        }, 20000);
+        }, 25000);
 
-        // 🚀 优化的双请求：简短 prompt 加快响应
         const shortPrompt = buildShortPrompt(q);
         const longPrompt = buildLongPrompt(q);
         
-        console.log('[App] 同时发起优化的短答和长答请求');
+        console.log('[App] 同时发起短答和长答请求');
         
-        // 短答请求 - 使用优化的 prompt
+        // 短答请求 - 累积所有片段
         const shortPromise = (async () => {
           try {
             const stream = await streamQuestion(shortPrompt);
             console.log('[App] 短答流已建立');
+            let accumulated = "";
             
             for await (const evt of stream) {
               const chunk = extractAssistantText(evt);
@@ -709,7 +586,9 @@ function App() {
               if (isRecommendedQuestion(cleanedChunk)) {
                 setSuggestions((prev) => (prev.includes(cleanedChunk) ? prev : [...prev, cleanedChunk]));
               } else {
-                setShortAnswers((prev) => [...prev, cleanedChunk]);
+                // 累积短答内容
+                accumulated += (accumulated ? "\n\n" : "") + cleanedChunk;
+                setShortAnswer(accumulated);
               }
             }
             
@@ -717,17 +596,18 @@ function App() {
           } catch (error) {
             const detail = getErrorMessage(error);
             console.error("Error calling Coze API (short):", detail);
-            setShortAnswers((prev) => [...prev, "Error: Failed to get short answer"]);
+            setShortAnswer("Error: Failed to get short answer");
           } finally {
             setIsLoadingShort(false);
           }
         })();
 
-        // 长答请求 - 使用优化的 prompt
+        // 长答请求 - 累积所有片段
         const longPromise = (async () => {
           try {
             const longStream = await streamQuestion(longPrompt);
             console.log('[App] 长答流已建立');
+            let accumulated = "";
             
             for await (const evt of longStream) {
               const chunk = extractAssistantText(evt);
@@ -739,28 +619,28 @@ function App() {
               if (isRecommendedQuestion(cleaned)) {
                 continue;
               }
-              setLongAnswers((prev) => [...prev, cleaned]);
+              // 累积长答内容
+              accumulated += (accumulated ? "\n\n" : "") + cleaned;
+              setLongAnswer(accumulated);
             }
             
             console.log('[App] 长答流结束');
           } catch (error) {
             const detail = getErrorMessage(error);
             console.error("Error calling Coze API (long):", detail);
-            setLongAnswers((prev) => [...prev, "Error: Failed to get detailed answer"]);
+            setLongAnswer("Error: Failed to get detailed answer");
           } finally {
             setIsLoadingLong(false);
           }
         })();
 
-        // 等待两个请求都完成
         await Promise.all([shortPromise, longPromise]);
         clearTimeout(timeoutId);
       } catch (error) {
         const detail = getErrorMessage(error);
         console.error("Error calling Coze API:", detail);
-        setShortAnswers((prev) => [...prev, "Error: Failed to get response from bot"]);
+        setShortAnswer("Error: Failed to get response from bot");
       } finally {
-        setHasConfirmed(true);
         setIsLoading(false);
         setIsLoadingShort(false);
         setIsLoadingLong(false);
@@ -779,14 +659,13 @@ function App() {
     setQuestion(e.target.value);
   };
 
-  // 清空回答（刷新）
   const handleRefresh = (): void => {
-    setShortAnswers([]);
-    setLongAnswers([]);
+    setShortAnswer("");
+    setLongAnswer("");
     setSuggestions([]);
   };
 
-  const focusHeroInput = (e?: SyntheticEvent): void => {
+  const focusInput = (e?: SyntheticEvent): void => {
     try {
       if (e && typeof (e as any).preventDefault === "function") {
         (e as any).preventDefault();
@@ -845,191 +724,119 @@ function App() {
   return (
     <Container>
       <TopBar>
-        <Tab $active={activeTab === "Chat"} onClick={() => setActiveTab("Chat")}>Chat</Tab>
-        <Tab $active={activeTab === "History"} onClick={() => setActiveTab("History")}>History</Tab>
+        <Tab $active={true}>Chat</Tab>
         <FlexSpacer />
         <RefreshButton
           aria-label="刷新回答"
           title="刷新回答"
-          onClick={() => {
-            handleRefresh();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleRefresh();
-            }
-          }}
+          onClick={handleRefresh}
         >
           <RefreshIcon />
         </RefreshButton>
       </TopBar>
-      {activeTab === "History" ? (
-        <HistoryContainer>
-          <HistoryTitle>History</HistoryTitle>
-          {history.length === 0 ? (
-            <HistoryEmpty>暂无历史记录</HistoryEmpty>
-          ) : (
-            <HistoryList>
-              {history.map((h, idx) => (
-                <HistoryItem
-                  key={idx}
+
+      <AnswersContainer>
+        {/* 短答区域 */}
+        {(isLoadingShort || shortAnswer) && (
+          <>
+            <AnswerSectionTitle>
+              ⚡ 快速回答
+              {isLoadingShort && <LoadingIcon src={loadingIconUrl} alt="loading" />}
+            </AnswerSectionTitle>
+            {shortAnswer && (
+              <AnswerItem>
+                <div className="answer-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{shortAnswer}</ReactMarkdown>
+                </div>
+                <div
+                  className="icon-wrapper"
+                  role="button"
+                  title="复制该回答"
+                  tabIndex={0}
+                  onClick={handleCopyIconClick}
+                >
+                  <SendIcon />
+                </div>
+              </AnswerItem>
+            )}
+          </>
+        )}
+
+        {/* 长答区域 */}
+        {(isLoadingLong || longAnswer) && (
+          <>
+            <AnswerSectionTitle>
+              📚 详细回答
+              {isLoadingLong && <LoadingIcon src={loadingIconUrl} alt="loading" />}
+            </AnswerSectionTitle>
+            {longAnswer && (
+              <AnswerItem>
+                <div className="answer-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{longAnswer}</ReactMarkdown>
+                </div>
+                <div
+                  className="icon-wrapper"
+                  role="button"
+                  title="复制该回答"
+                  tabIndex={0}
+                  onClick={handleCopyIconClick}
+                >
+                  <SendIcon />
+                </div>
+              </AnswerItem>
+            )}
+          </>
+        )}
+
+        {/* 推荐问题 */}
+        {suggestions.length > 0 && (
+          <SuggestionsContainer>
+            <SectionTitle>推荐问题</SectionTitle>
+            <SuggestionList>
+              {suggestions.map((s, i) => (
+                <SuggestionCard
+                  key={i}
                   role="button"
                   tabIndex={0}
                   onClick={(e) => {
-                    setQuestion(h);
-                    setActiveTab("Chat");
-                    focusHeroInput(e as any);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setQuestion(h);
-                      setActiveTab("Chat");
-                      focusHeroInput(e as any);
-                    }
+                    setQuestion(s);
+                    focusInput(e as any);
                   }}
                 >
-                  {h}
-                </HistoryItem>
+                  <SuggestionText>
+                    <Emoji>{getSuggestionEmoji(i)}</Emoji>
+                    <span>{s}</span>
+                  </SuggestionText>
+                </SuggestionCard>
               ))}
-            </HistoryList>
-          )}
-        </HistoryContainer>
-      ) : (
-        <>
-          {/* 欢迎区与卡片已移除，下面直接展示回答与输入区域 */}
+            </SuggestionList>
+          </SuggestionsContainer>
+        )}
+      </AnswersContainer>
 
-          <AnswersContainer>
-            {/* 短答区域 */}
-            {(isLoadingShort || shortAnswers.length > 0) && (
-              <>
-                <AnswerSectionTitle>
-                  ⚡ 快速回答
-                  {isLoadingShort && <LoadingIcon src={loadingIconUrl} alt="loading" />}
-                </AnswerSectionTitle>
-                {shortAnswers.map((answer, index) => (
-                  <AnswerItem key={`short-${index}`}>
-                    <div className="answer-text">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-                    </div>
-                    <div
-                      className="icon-wrapper"
-                      role="button"
-                      title="复制该回答"
-                      tabIndex={0}
-                      onClick={handleCopyIconClick}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleCopyIconClick(e);
-                        }
-                      }}
-                    >
-                      <SendIcon />
-                    </div>
-                  </AnswerItem>
-                ))}
-              </>
-            )}
-
-            {/* 长答区域 */}
-            {(isLoadingLong || longAnswers.length > 0) && (
-              <>
-                <AnswerSectionTitle>
-                  📚 详细回答
-                  {isLoadingLong && <LoadingIcon src={loadingIconUrl} alt="loading" />}
-                </AnswerSectionTitle>
-                {longAnswers.map((answer, index) => (
-                  <AnswerItem key={`long-${index}`}>
-                    <div className="answer-text">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-                    </div>
-                    <div
-                      className="icon-wrapper"
-                      role="button"
-                      title="复制该回答"
-                      tabIndex={0}
-                      onClick={handleCopyIconClick}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleCopyIconClick(e);
-                        }
-                      }}
-                    >
-                      <SendIcon />
-                    </div>
-                  </AnswerItem>
-                ))}
-              </>
-            )}
-
-          {suggestions.length > 0 && (
-            <SuggestionsContainer>
-              <SectionTitle>推荐问题</SectionTitle>
-              <SuggestionList>
-                {suggestions.map((s, i) => (
-                  <SuggestionCard
-                    key={i}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      setQuestion(s);
-                      focusHeroInput(e as any);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setQuestion(s);
-                        focusHeroInput(e as any);
-                      }
-                    }}
-                  >
-                    <SuggestionText>
-                      <Emoji>{getSuggestionEmoji(i)}</Emoji>
-                      <span>{s}</span>
-                    </SuggestionText>
-                  </SuggestionCard>
-                ))}
-              </SuggestionList>
-            </SuggestionsContainer>
-          )}
-
-          </AnswersContainer>
-
-          {/* 输入框固定在底部，顶部内容可单独滚动 */}
-          <InputContainer id="hero-input">
-            <QuestionInput
-              ref={textareaRef}
-              placeholder="Ask complex questions (Enter to send)"
-              value={question}
-              onChange={handleInput}
-              onKeyDown={handleKeyPress}
-              rows={1}
-            />
-            <SendLink
-              href="#hero-input"
-              aria-label="send"
-              title="Send"
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.preventDefault();
-                handleConfirm();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleConfirm();
-                }
-              }}
-            >
-              Send
-            </SendLink>
-          </InputContainer>
-        </>
-      )}
+      <InputContainer>
+        <QuestionInput
+          ref={textareaRef}
+          placeholder="Ask complex questions (Enter to send)"
+          value={question}
+          onChange={handleInput}
+          onKeyDown={handleKeyPress}
+          rows={1}
+        />
+        <SendLink
+          href="#"
+          aria-label="send"
+          title="Send"
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.preventDefault();
+            handleConfirm();
+          }}
+        >
+          Send
+        </SendLink>
+      </InputContainer>
     </Container>
   );
 }
