@@ -670,76 +670,114 @@ const HistoryContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 16px;
+  padding: 20px 16px 16px;
   background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
 `;
 
 const HistoryHeader = styled.div`
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 4px;
 `;
 
 const HistoryTitle = styled.div`
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #1f2937;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  
+  span:first-child {
+    font-size: 24px;
+  }
 `;
 
 const SearchInputWrapper = styled.div`
   position: relative;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 `;
 
 const SearchIcon = styled.span`
   position: absolute;
-  left: 12px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
   color: #9ca3af;
-  font-size: 14px;
+  font-size: 16px;
   pointer-events: none;
+  z-index: 1;
 `;
 
 const ClearSearchButton = styled.button`
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  background: transparent;
+  background: #f3f4f6;
   border: none;
-  color: #9ca3af;
+  color: #6b7280;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
   font-size: 12px;
+  font-weight: 500;
   transition: all 0.2s ease;
+  z-index: 1;
 
   &:hover {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: #e5e7eb;
+    color: #374151;
+  }
+  
+  &:active {
+    transform: translateY(-50%) scale(0.95);
   }
 `;
 
 const HistorySearchInput = styled(QuestionInput)`
-  padding-left: 36px;
-  padding-right: 60px;
-  min-height: 42px;
+  padding-left: 42px;
+  padding-right: 70px;
+  min-height: 44px;
   background: white;
   border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s ease;
+  
+  &::placeholder {
+    color: #9ca3af;
+    font-size: 14px;
+  }
   
   &:focus {
     border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04);
+    background: #fafbfc;
+  }
+  
+  &:hover:not(:focus) {
+    border-color: #d1d5db;
   }
 `;
 
 const HistoryStats = styled.div`
   font-size: 12px;
   color: #6b7280;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  
+  &::before {
+    content: '📊';
+    font-size: 14px;
+  }
 `;
 
 const HistoryListWrapper = styled.div`
@@ -878,102 +916,151 @@ const HistoryActionButton = styled.button`
 `;
 
 const SortButton = styled.button<{ $active?: boolean }>`
-  background: ${({ $active }) => ($active ? "#eff6ff" : "transparent")};
+  background: ${({ $active }) => ($active ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)" : "white")};
   border: 1px solid ${({ $active }) => ($active ? "#3b82f6" : "#e5e7eb")};
-  color: ${({ $active }) => ($active ? "#3b82f6" : "#6b7280")};
-  padding: 6px 12px;
-  border-radius: 6px;
+  color: ${({ $active }) => ($active ? "#1e40af" : "#6b7280")};
+  padding: 8px 14px;
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: ${({ $active }) => ($active ? 600 : 500)};
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  box-shadow: ${({ $active }) => 
+    $active ? "0 2px 8px rgba(59, 130, 246, 0.2)" : "0 1px 3px rgba(0, 0, 0, 0.05)"};
+  
+  span {
+    font-size: 14px;
+    transition: transform 0.25s ease;
+  }
   
   &:hover {
-    background: ${({ $active }) => ($active ? "#dbeafe" : "#f9fafb")};
+    background: ${({ $active }) => ($active ? "linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%)" : "#f0f9ff")};
     border-color: #3b82f6;
+    transform: translateY(-1px);
+    box-shadow: ${({ $active }) => 
+      $active ? "0 4px 12px rgba(59, 130, 246, 0.3)" : "0 2px 6px rgba(59, 130, 246, 0.15)"};
+    
+    span {
+      transform: scale(1.1);
+    }
+  }
+  
+  &:active {
+    transform: translateY(0) scale(0.98);
   }
 `;
 
 const SortOptions = styled.div`
   display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 10px;
 `;
 
 const TimeFilterOptions = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 14px;
 `;
 
 const TimeFilterButton = styled.button<{ $active?: boolean; disabled?: boolean }>`
   background: ${({ $active, disabled }) => 
-    disabled ? "#f3f4f6" : $active ? "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" : "white"};
+    disabled ? "#f9fafb" : $active ? "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" : "white"};
   border: 1px solid ${({ $active, disabled }) => 
     disabled ? "#e5e7eb" : $active ? "#fbbf24" : "#e5e7eb"};
   color: ${({ $active, disabled }) => 
     disabled ? "#9ca3af" : $active ? "#92400e" : "#6b7280"};
-  padding: 8px 4px;
-  border-radius: 8px;
+  padding: 10px 6px;
+  border-radius: 10px;
   font-size: 11px;
   font-weight: ${({ $active }) => ($active ? 600 : 500)};
   cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
+  gap: 5px;
+  opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
   box-shadow: ${({ $active }) => 
-    $active ? "0 2px 8px rgba(251, 191, 36, 0.25)" : "0 1px 3px rgba(0, 0, 0, 0.05)"};
+    $active ? "0 3px 10px rgba(251, 191, 36, 0.3)" : "0 2px 6px rgba(0, 0, 0, 0.04)"};
+  position: relative;
+  overflow: hidden;
+  
+  /* 激活状态的光泽效果 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.5s ease;
+  }
   
   span:first-child {
-    font-size: 16px;
+    font-size: 20px;
     line-height: 1;
+    transition: transform 0.25s ease;
   }
   
   span:last-child {
-    line-height: 1;
+    line-height: 1.2;
     white-space: nowrap;
   }
   
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${({ $active, disabled }) => 
-      disabled ? "#f3f4f6" : $active ? "linear-gradient(135deg, #fde68a 0%, #fcd34d 100%)" : "#fffbeb"};
+      disabled ? "#f9fafb" : $active ? "linear-gradient(135deg, #fde68a 0%, #fcd34d 100%)" : "#fffbeb"};
     border-color: ${({ disabled }) => (disabled ? "#e5e7eb" : "#fbbf24")};
-    transform: ${({ disabled }) => (disabled ? "none" : "translateY(-1px)")};
+    transform: ${({ disabled }) => (disabled ? "none" : "translateY(-2px)")};
     box-shadow: ${({ $active, disabled }) => 
-      disabled ? "0 1px 3px rgba(0, 0, 0, 0.05)" : 
-      $active ? "0 4px 12px rgba(251, 191, 36, 0.35)" : "0 2px 6px rgba(245, 196, 83, 0.15)"};
+      disabled ? "0 2px 6px rgba(0, 0, 0, 0.04)" : 
+      $active ? "0 6px 16px rgba(251, 191, 36, 0.4)" : "0 4px 10px rgba(245, 196, 83, 0.2)"};
+    
+    span:first-child {
+      transform: scale(1.1);
+    }
+    
+    &::before {
+      left: 100%;
+    }
   }
   
-  &:active {
-    transform: ${({ disabled }) => (disabled ? "none" : "scale(0.98)")};
+  &:active:not(:disabled) {
+    transform: ${({ disabled }) => (disabled ? "none" : "translateY(0) scale(0.96)")};
   }
 `;
 
 const TimeFilterHint = styled.div`
   font-size: 11px;
   color: #92400e;
-  background: #fffbeb;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
   border: 1px solid #fde68a;
   border-left: 3px solid #f59e0b;
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  line-height: 1.5;
+  gap: 10px;
+  line-height: 1.6;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+  
+  span:first-child {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
   
   a {
     color: #f59e0b;
     text-decoration: underline;
     font-weight: 600;
+    transition: color 0.2s ease;
     
     &:hover {
       color: #d97706;
