@@ -876,13 +876,7 @@ function App() {
                     <SendIcon />
                   </div>
                 </AnswerItem>
-                {/* 第一个回答加载提示：在第一个回答下方显示，与第二个提示一致 */}
-                {index === 0 && isLoadingFirst && (
-                  <LoadingNotice>
-                    <span>正在加载第一个回答</span>
-                    <LoadingIcon src={loadingIconUrl} alt="loading" />
-                  </LoadingNotice>
-                )}
+                {/* 第二个回答加载提示：仅在第一个回答下方显示 */}
                 {index === 0 && isLoadingSecond && (
                   <LoadingNotice>
                     <span>正在加载第二个回答</span>
