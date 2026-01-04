@@ -3,7 +3,7 @@ import loadingIconUrl from "./assets/loading.png";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
 import styled, { keyframes } from "styled-components";
 import { CopyOutlined, ReloadOutlined } from "@ant-design/icons";
-import { streamQuestion } from "./client_kn";
+import { streamQuestion } from "./client_jwt";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 

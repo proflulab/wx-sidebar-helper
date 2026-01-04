@@ -114,9 +114,9 @@ const cozeLogMiddleware: Plugin = {
           // eslint-disable-next-line no-console
           console.error('Failed to create Coze JWT token', error);
           res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'Failed to generate access token' }));
-      });
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Failed to generate access token' }));
+        });
     });
 
     server.middlewares.use('/api/coze-chat', async (req, res, _next) => {
