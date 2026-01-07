@@ -3,11 +3,13 @@ import loadingIconUrl from "./assets/loading.png";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
 import styled, { keyframes } from "styled-components";
 import { CopyOutlined, ReloadOutlined } from "@ant-design/icons";
-import { streamQuestion } from "./client_kn";
+import { streamQuestion as streamCozeQuestion } from "./client_kn";
+import { streamQuestion as streamDoubaoQuestion } from "./client_doubao";
 import { buildMeetingNotice } from "./meetingNotice";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import doubaoCorpus from "./assets/resources/doubao-corpus.md?raw";
 
 // 样式组件
 const Container = styled.div`
@@ -87,6 +89,62 @@ const Tab = styled.button<{ $active?: boolean }>`
     height: 2px;
     background: ${({ $active }) => ($active ? "#0b57d0" : "transparent")};
     border-radius: 2px;
+  }
+`;
+
+const ProviderToggle = styled.label<{ $disabled?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  position: relative;
+  cursor: ${({ $disabled }) => ($disabled ? "not-allowed" : "pointer")};
+  opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+  user-select: none;
+`;
+
+const ToggleLabel = styled.span<{ $active?: boolean }>`
+  font-size: 12px;
+  font-weight: ${({ $active }) => ($active ? 600 : 500)};
+  color: ${({ $active }) => ($active ? "#0b57d0" : "#8a9aa9")};
+`;
+
+const ToggleInput = styled.input`
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+
+  &:checked + span {
+    background: #0b57d0;
+  }
+
+  &:checked + span::after {
+    transform: translateX(16px);
+  }
+`;
+
+const ToggleTrack = styled.span`
+  width: 34px;
+  height: 18px;
+  background: #d7dde3;
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.2s ease;
+
+  &::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   }
 `;
 
@@ -526,6 +584,108 @@ const SuggestionText = styled.div`
   color: #1f2937;
 `;
 
+const CorpusContainer = styled.div`
+  background: #ffffff;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: 1px dashed #d8e1ee;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+`;
+
+const CorpusFields = styled.div`
+  display: grid;
+  gap: 8px;
+`;
+
+const CorpusField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const CorpusLabel = styled.label`
+  font-size: 12px;
+  color: #6b7280;
+`;
+
+const CorpusInput = styled.input`
+  padding: 8px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+  color: #1f2937;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+  }
+`;
+
+const CorpusTextarea = styled.textarea`
+  padding: 8px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+  color: #1f2937;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+  }
+`;
+
+const CorpusActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+`;
+
+const CorpusHint = styled.div`
+  font-size: 12px;
+  color: #7a8794;
+`;
+
+const CorpusButton = styled.button`
+  border: none;
+  background: #0b57d0;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #0a4bb8;
+  }
+
+  &:disabled {
+    background: #c7d2e0;
+    cursor: not-allowed;
+  }
+`;
+
+const CorpusStatus = styled.div<{ $error?: boolean }>`
+  margin-top: 6px;
+  font-size: 12px;
+  color: ${({ $error }) => ($error ? "#d14343" : "#1b7a4b")};
+`;
 
 // 欢迎区与功能卡片（仿图示布局）
 
@@ -685,6 +845,17 @@ const getSuggestionEmoji = (index: number): string => {
 // 构建两种提示语
 const buildShortPrompt = (q: string): string => `${q}（3句话以内）`;
 const buildLongPrompt = (q: string): string => `${q}（详细回答）`;
+const normalizePromptText = (value: string): string => value.replace(/\r\n/g, "\n");
+const mergePromptParts = (prefix: string, input: string): string => {
+  const left = normalizePromptText(prefix).replace(/\n+$/g, "");
+  const right = normalizePromptText(input).replace(/^\n+/g, "");
+  if (!left) return right;
+  if (!right) return left;
+  return `${left}\n${right}`;
+};
+const buildDoubaoPrompt = (q: string): string => mergePromptParts(doubaoCorpus, q);
+const buildDoubaoShortPrompt = (q: string): string => buildDoubaoPrompt(buildShortPrompt(q));
+const buildDoubaoLongPrompt = (q: string): string => buildDoubaoPrompt(buildLongPrompt(q));
 
 // 统一规范化错误为可打印字符串
 const getErrorMessage = (error: unknown): string => {
@@ -708,16 +879,24 @@ type MeetingFormState = {
 
 function App() {
   const [activeTab, setActiveTab] = useState<"Chat" | "Meeting" | "History">("Chat");
+  const [useCoze, setUseCoze] = useState<boolean>(false);
   const [question, setQuestion] = useState<string>("");
   const [answers, setAnswers] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [doubaoEntry, setDoubaoEntry] = useState<{ question: string; answer: string }>({
+    question: "",
+    answer: "",
+  });
+  const [doubaoSaving, setDoubaoSaving] = useState<boolean>(false);
+  const [doubaoStatus, setDoubaoStatus] = useState<string>("");
+  const [doubaoError, setDoubaoError] = useState<string>("");
   const [history, setHistory] = useState<string[]>([]);
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingFirst, setIsLoadingFirst] = useState<boolean>(false);
   const [isLoadingSecond, setIsLoadingSecond] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const meetingSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meetingBuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasChunkRef = useRef<boolean>(false);
   const [meetingForm, setMeetingForm] = useState<MeetingFormState>({
@@ -745,10 +924,29 @@ function App() {
     adjustTextareaHeight(textareaRef.current);
   }, [question]);
 
+  const requestCozeSuggestions = async (prompt: string): Promise<void> => {
+    try {
+      const stream = await streamCozeQuestion(prompt);
+      for await (const evt of stream) {
+        const chunk = extractAssistantText(evt);
+        if (!chunk) continue;
+        const cleaned = cleanRecallSuffix(chunk);
+        if (!cleaned) continue;
+        if (isRecommendedQuestion(cleaned)) {
+          setSuggestions((prev) => (prev.includes(cleaned) ? prev : [...prev, cleaned]));
+        }
+      }
+    } catch (error) {
+      const detail = getErrorMessage(error);
+      console.warn("Failed to fetch Coze suggestions:", detail);
+    }
+  };
+
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
       // 发送前把问题缓存到历史（去重，最多10条）
       const q = question.trim();
+      queueChatSave(question);
       setHistory((prev) => {
         const next = [q, ...prev.filter((it) => it !== q)];
         return next.slice(0, 10);
@@ -765,80 +963,150 @@ function App() {
       // 每条 completed 消息独立展示，不再使用占位拼接
 
       try {
-        // 第一次请求：短答（3句话以内）
-        const shortPrompt = buildShortPrompt(q);
-        const stream = await streamQuestion(shortPrompt);
-        let longStarted = false;
-        let longPromise: Promise<void> | null = null;
+        if (useCoze) {
+          // 第一次请求：短答（3句话以内）
+          const shortPrompt = buildShortPrompt(q);
+          const stream = await streamCozeQuestion(shortPrompt);
+          let longStarted = false;
+          let longPromise: Promise<void> | null = null;
 
-        // 超时保护：若 25s 内无片段到达，提示失败
-        const timeoutId = setTimeout(() => {
-          if (!hasChunkRef.current) {
-            setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
-            setIsLoading(false);
-          }
-        }, 25000);
+          // 超时保护：若 25s 内无片段到达，提示失败
+          const timeoutId = setTimeout(() => {
+            if (!hasChunkRef.current) {
+              setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
+              setIsLoading(false);
+            }
+          }, 25000);
 
-        // 逐步消费流事件，拼接助手的文本片段
-        for await (const evt of stream) {
-          // 调试输出，便于定位事件结构
-          // eslint-disable-next-line no-console
-          console.debug("Coze stream event:", evt);
-          const chunk = extractAssistantText(evt);
-          if (!chunk) continue;
-          const cleanedChunk = cleanRecallSuffix(chunk);
-          if (!cleanedChunk) continue;
-          hasChunkRef.current = true;
-          // 分类：推荐问题（一句话） vs 正常回答
-          if (isRecommendedQuestion(cleanedChunk)) {
-            setSuggestions((prev) => (prev.includes(cleanedChunk) ? prev : [...prev, cleanedChunk]));
-          } else {
-            // 每条 completed 消息追加一个独立的回答框
-            setAnswers((prev) => [...prev, cleanedChunk]);
-          }
+          // 逐步消费流事件，拼接助手的文本片段
+          for await (const evt of stream) {
+            // 调试输出，便于定位事件结构
+            // eslint-disable-next-line no-console
+            console.debug("Coze stream event:", evt);
+            const chunk = extractAssistantText(evt);
+            if (!chunk) continue;
+            const cleanedChunk = cleanRecallSuffix(chunk);
+            if (!cleanedChunk) continue;
+            hasChunkRef.current = true;
+            // 分类：推荐问题（一句话） vs 正常回答
+            if (isRecommendedQuestion(cleanedChunk)) {
+              setSuggestions((prev) => (prev.includes(cleanedChunk) ? prev : [...prev, cleanedChunk]));
+            } else {
+              // 每条 completed 消息追加一个独立的回答框
+              setAnswers((prev) => [...prev, cleanedChunk]);
+            }
 
-          // 在首次短答片段显示后，触发第二次请求：详细回答（不采集推荐问题）
-          if (!longStarted) {
-            longStarted = true;
-            setIsLoadingSecond(true);
-            const longPrompt = buildLongPrompt(q);
-            longPromise = (async () => {
-              try {
-                const longStream = await streamQuestion(longPrompt);
-                for await (const evt2 of longStream) {
-                  const chunk2 = extractAssistantText(evt2);
-                  if (!chunk2) continue;
-                  hasChunkRef.current = true;
-                  // 仅追加回答，不处理推荐问题；若为一句话推荐则忽略
-                  const cleaned = cleanRecallSuffix(chunk2);
-                  if (!cleaned.trim()) continue;
-                  if (isRecommendedQuestion(cleaned)) {
-                    continue;
+            // 在首次短答片段显示后，触发第二次请求：详细回答（不采集推荐问题）
+            if (!longStarted) {
+              longStarted = true;
+              setIsLoadingSecond(true);
+              const longPrompt = buildLongPrompt(q);
+              longPromise = (async () => {
+                try {
+                  const longStream = await streamCozeQuestion(longPrompt);
+                  for await (const evt2 of longStream) {
+                    const chunk2 = extractAssistantText(evt2);
+                    if (!chunk2) continue;
+                    hasChunkRef.current = true;
+                    // 仅追加回答，不处理推荐问题；若为一句话推荐则忽略
+                    const cleaned = cleanRecallSuffix(chunk2);
+                    if (!cleaned.trim()) continue;
+                    if (isRecommendedQuestion(cleaned)) {
+                      continue;
+                    }
+                    setAnswers((prev) => [...prev, cleaned]);
                   }
-                  setAnswers((prev) => [...prev, cleaned]);
+                } catch (error) {
+                  const detail = getErrorMessage(error);
+                  console.error("Error calling Coze API (long):", detail);
+                  setAnswers((prev) => [...prev, "Error: Failed to get detailed answer"]);
+                } finally {
+                  setIsLoadingSecond(false);
                 }
-              } catch (error) {
-                const detail = getErrorMessage(error);
-                console.error("Error calling Coze API (long):", detail);
-                setAnswers((prev) => [...prev, "Error: Failed to get detailed answer"]);
-              } finally {
-                setIsLoadingSecond(false);
-              }
-            })();
+              })();
+            }
           }
-        }
 
-        // 短答流结束，关闭第一个回答的加载提示
-        setIsLoadingFirst(false);
+          // 短答流结束，关闭第一个回答的加载提示
+          setIsLoadingFirst(false);
 
-        // 等待第二次请求结束后再取消加载态
-        if (longPromise) {
-          await longPromise;
+          // 等待第二次请求结束后再取消加载态
+          if (longPromise) {
+            await longPromise;
+          }
+          clearTimeout(timeoutId);
+        } else {
+          void requestCozeSuggestions(buildShortPrompt(q));
+
+          const shortPrompt = buildDoubaoShortPrompt(q);
+          const shortStream = await streamDoubaoQuestion(shortPrompt);
+          let shortStarted = false;
+          let shortHasChunk = false;
+
+          // 超时保护：若 25s 内无片段到达，提示失败
+          const shortTimeoutId = setTimeout(() => {
+            if (!shortHasChunk) {
+              setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
+              setIsLoading(false);
+            }
+          }, 25000);
+
+          for await (const chunk of shortStream) {
+            if (!chunk) continue;
+            shortHasChunk = true;
+            hasChunkRef.current = true;
+            if (!shortStarted) {
+              shortStarted = true;
+              setIsLoadingFirst(false);
+              setAnswers((prev) => [...prev, chunk]);
+              continue;
+            }
+            setAnswers((prev) => {
+              if (prev.length === 0) return [chunk];
+              const next = [...prev];
+              next[next.length - 1] = `${next[next.length - 1] ?? ""}${chunk}`;
+              return next;
+            });
+          }
+          clearTimeout(shortTimeoutId);
+          setIsLoadingFirst(false);
+
+          setIsLoadingSecond(true);
+          const longPrompt = buildDoubaoLongPrompt(q);
+          const longStream = await streamDoubaoQuestion(longPrompt);
+          let longStarted = false;
+          let longHasChunk = false;
+
+          const longTimeoutId = setTimeout(() => {
+            if (!longHasChunk) {
+              setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
+              setIsLoading(false);
+            }
+          }, 25000);
+
+          for await (const chunk of longStream) {
+            if (!chunk) continue;
+            longHasChunk = true;
+            hasChunkRef.current = true;
+            if (!longStarted) {
+              longStarted = true;
+              setIsLoadingSecond(false);
+              setAnswers((prev) => [...prev, chunk]);
+              continue;
+            }
+            setAnswers((prev) => {
+              if (prev.length === 0) return [chunk];
+              const next = [...prev];
+              next[next.length - 1] = `${next[next.length - 1] ?? ""}${chunk}`;
+              return next;
+            });
+          }
+          clearTimeout(longTimeoutId);
+          setIsLoadingSecond(false);
         }
-        clearTimeout(timeoutId);
       } catch (error) {
         const detail = getErrorMessage(error);
-        console.error("Error calling Coze API:", detail);
+        console.error("Error calling chat API:", detail);
         setAnswers((prev) => [...prev, "Error: Failed to get response from bot"]);
       } finally {
         setHasConfirmed(true);
@@ -857,24 +1125,86 @@ function App() {
   };
 
   const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setQuestion(e.target.value);
+    const value = e.target.value;
+    setQuestion(value);
+    queueChatSave(value);
   };
 
-  const saveMeetingInput = async (text: string): Promise<void> => {
+  const saveChatInput = async (text: string): Promise<void> => {
+    if (!text.trim()) return;
     try {
-      await fetch("/api/meeting-save", {
+      await fetch("/api/chat-save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
         keepalive: true,
       });
     } catch (error) {
-      console.warn("Failed to save meeting input:", error);
+      console.warn("Failed to save chat input:", error);
     }
   };
 
-  const composeMeetingInput = (form: MeetingFormState): string =>
-    [form.link1, form.id1, form.topic1, form.link2, form.id2, form.topic2].join("\n");
+  const queueChatSave = (text: string): void => {
+    if (!text.trim()) return;
+    if (chatSaveTimerRef.current) {
+      window.clearTimeout(chatSaveTimerRef.current);
+    }
+    chatSaveTimerRef.current = window.setTimeout(() => {
+      chatSaveTimerRef.current = null;
+      void saveChatInput(text);
+    }, 400);
+  };
+
+  const canSubmitDoubaoEntry =
+    doubaoEntry.question.trim().length > 0 && doubaoEntry.answer.trim().length > 0;
+
+  const handleDoubaoEntryChange =
+    (field: "question" | "answer") =>
+    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
+      const value = e.target.value;
+      setDoubaoEntry((prev) => ({ ...prev, [field]: value }));
+      setDoubaoStatus("");
+      setDoubaoError("");
+    };
+
+  const handleDoubaoEntrySubmit = async (): Promise<void> => {
+    if (doubaoSaving) return;
+    const questionText = doubaoEntry.question.replace(/\r\n/g, "\n").trim();
+    const answerText = doubaoEntry.answer.replace(/\r\n/g, "\n").trim();
+    if (!questionText || !answerText) {
+      setDoubaoError("请填写问题与答案");
+      return;
+    }
+
+    setDoubaoSaving(true);
+    setDoubaoError("");
+    setDoubaoStatus("");
+
+    try {
+      const res = await fetch("/api/doubao-corpus-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: questionText, answer: answerText }),
+      });
+      let payload: { index?: number; error?: string } | null = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+      if (!res.ok) {
+        const detail = payload?.error ?? `HTTP ${res.status}`;
+        throw new Error(detail);
+      }
+      const savedIndex = typeof payload?.index === "number" ? payload.index : null;
+      setDoubaoStatus(savedIndex === null ? "已写入" : `已写入：${savedIndex}`);
+      setDoubaoEntry({ question: "", answer: "" });
+    } catch (error) {
+      setDoubaoError(getErrorMessage(error));
+    } finally {
+      setDoubaoSaving(false);
+    }
+  };
 
   const extractMeetingPair = (line: string): [string, string] | null => {
     const urlMatch = line.match(/https?:\/\/\S+/);
@@ -907,16 +1237,6 @@ function App() {
       }
     }
     return null;
-  };
-
-  const queueMeetingSave = (text: string): void => {
-    if (meetingSaveTimerRef.current) {
-      window.clearTimeout(meetingSaveTimerRef.current);
-    }
-    meetingSaveTimerRef.current = window.setTimeout(() => {
-      meetingSaveTimerRef.current = null;
-      void saveMeetingInput(text);
-    }, 400);
   };
 
   const buildMeetingNoticeFromForm = (form: MeetingFormState, silent = false): void => {
@@ -954,7 +1274,6 @@ function App() {
     const value = e.target.value;
     setMeetingForm((prev) => {
       const next = { ...prev, [field]: value };
-      queueMeetingSave(composeMeetingInput(next));
       queueMeetingBuild(next);
       return next;
     });
@@ -967,7 +1286,6 @@ function App() {
     const parsed = parseMeetingPaste(value);
     if (parsed) {
       setMeetingForm(parsed);
-      queueMeetingSave(composeMeetingInput(parsed));
       queueMeetingBuild(parsed);
       setMeetingError("");
     }
@@ -1049,6 +1367,20 @@ function App() {
         <Tab $active={activeTab === "Meeting"} onClick={() => setActiveTab("Meeting")}>Meeting</Tab>
         <Tab $active={activeTab === "History"} onClick={() => setActiveTab("History")}>History</Tab>
         <FlexSpacer />
+        {activeTab === "Chat" && (
+          <ProviderToggle $disabled={isLoading} title="切换 Coze 或豆包">
+            <ToggleLabel $active={!useCoze}>豆包</ToggleLabel>
+            <ToggleInput
+              type="checkbox"
+              checked={useCoze}
+              onChange={() => setUseCoze((prev) => !prev)}
+              disabled={isLoading}
+              aria-label="切换 Coze 智能体"
+            />
+            <ToggleTrack />
+            <ToggleLabel $active={useCoze}>Coze</ToggleLabel>
+          </ProviderToggle>
+        )}
         <RefreshButton
           aria-label="刷新回答"
           title="刷新回答"
@@ -1264,36 +1596,75 @@ function App() {
               </Fragment>
             ))}
 
-          {suggestions.length > 0 && (
-            <SuggestionsContainer>
-              <SectionTitle>推荐问题</SectionTitle>
-              <SuggestionList>
-                {suggestions.map((s, i) => (
-                  <SuggestionCard
-                    key={i}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      setQuestion(s);
-                      focusHeroInput(e as any);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
+            {useCoze && suggestions.length > 0 && (
+              <SuggestionsContainer>
+                <SectionTitle>推荐问题</SectionTitle>
+                <SuggestionList>
+                  {suggestions.map((s, i) => (
+                    <SuggestionCard
+                      key={i}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
                         setQuestion(s);
                         focusHeroInput(e as any);
-                      }
-                    }}
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setQuestion(s);
+                          focusHeroInput(e as any);
+                        }
+                      }}
+                    >
+                      <SuggestionText>
+                        <Emoji>{getSuggestionEmoji(i)}</Emoji>
+                        <span>{s}</span>
+                      </SuggestionText>
+                    </SuggestionCard>
+                  ))}
+                </SuggestionList>
+              </SuggestionsContainer>
+            )}
+
+            {!useCoze && (
+              <CorpusContainer>
+                <SectionTitle>追加语料</SectionTitle>
+                <CorpusFields>
+                  <CorpusField>
+                    <CorpusLabel>问题行</CorpusLabel>
+                    <CorpusInput
+                      value={doubaoEntry.question}
+                      onChange={handleDoubaoEntryChange("question")}
+                      placeholder="例如：训练营可以退款吗？"
+                    />
+                  </CorpusField>
+                  <CorpusField>
+                    <CorpusLabel>答：行</CorpusLabel>
+                    <CorpusTextarea
+                      value={doubaoEntry.answer}
+                      onChange={handleDoubaoEntryChange("answer")}
+                      placeholder="例如：本训练营为线上直播形式，服务开启后不支持退费。"
+                    />
+                  </CorpusField>
+                </CorpusFields>
+                <CorpusActions>
+                  <CorpusHint>将按序号追加到 doubao-corpus.md</CorpusHint>
+                  <CorpusButton
+                    type="button"
+                    onClick={handleDoubaoEntrySubmit}
+                    disabled={doubaoSaving || !canSubmitDoubaoEntry}
                   >
-                    <SuggestionText>
-                      <Emoji>{getSuggestionEmoji(i)}</Emoji>
-                      <span>{s}</span>
-                    </SuggestionText>
-                  </SuggestionCard>
-                ))}
-              </SuggestionList>
-            </SuggestionsContainer>
-          )}
+                    {doubaoSaving ? "写入中..." : "写入语料"}
+                  </CorpusButton>
+                </CorpusActions>
+                {(doubaoError || doubaoStatus) && (
+                  <CorpusStatus $error={!!doubaoError}>
+                    {doubaoError || doubaoStatus}
+                  </CorpusStatus>
+                )}
+              </CorpusContainer>
+            )}
 
           </AnswersContainer>
 
