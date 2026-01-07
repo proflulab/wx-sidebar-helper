@@ -1627,46 +1627,46 @@ function App() {
               </SuggestionsContainer>
             )}
 
-            {!useCoze && (
-              <CorpusContainer>
-                <SectionTitle>追加语料</SectionTitle>
-                <CorpusFields>
-                  <CorpusField>
-                    <CorpusLabel>问题行</CorpusLabel>
-                    <CorpusInput
-                      value={doubaoEntry.question}
-                      onChange={handleDoubaoEntryChange("question")}
-                      placeholder="例如：训练营可以退款吗？"
-                    />
-                  </CorpusField>
-                  <CorpusField>
-                    <CorpusLabel>答：行</CorpusLabel>
-                    <CorpusTextarea
-                      value={doubaoEntry.answer}
-                      onChange={handleDoubaoEntryChange("answer")}
-                      placeholder="例如：本训练营为线上直播形式，服务开启后不支持退费。"
-                    />
-                  </CorpusField>
-                </CorpusFields>
-                <CorpusActions>
-                  <CorpusHint>将按序号追加到 doubao-corpus.md</CorpusHint>
-                  <CorpusButton
-                    type="button"
-                    onClick={handleDoubaoEntrySubmit}
-                    disabled={doubaoSaving || !canSubmitDoubaoEntry}
-                  >
-                    {doubaoSaving ? "写入中..." : "写入语料"}
-                  </CorpusButton>
-                </CorpusActions>
-                {(doubaoError || doubaoStatus) && (
-                  <CorpusStatus $error={!!doubaoError}>
-                    {doubaoError || doubaoStatus}
-                  </CorpusStatus>
-                )}
-              </CorpusContainer>
-            )}
-
           </AnswersContainer>
+
+          {!useCoze && (
+            <CorpusContainer>
+              <SectionTitle>追加语料</SectionTitle>
+              <CorpusFields>
+                <CorpusField>
+                  <CorpusLabel>问题行</CorpusLabel>
+                  <CorpusInput
+                    value={doubaoEntry.question}
+                    onChange={handleDoubaoEntryChange("question")}
+                    placeholder="例如：训练营可以退款吗？"
+                  />
+                </CorpusField>
+                <CorpusField>
+                  <CorpusLabel>答：行</CorpusLabel>
+                  <CorpusTextarea
+                    value={doubaoEntry.answer}
+                    onChange={handleDoubaoEntryChange("answer")}
+                    placeholder="例如：本训练营为线上直播形式，服务开启后不支持退费。"
+                  />
+                </CorpusField>
+              </CorpusFields>
+              <CorpusActions>
+                <CorpusHint>将按序号追加到 doubao-corpus.md</CorpusHint>
+                <CorpusButton
+                  type="button"
+                  onClick={handleDoubaoEntrySubmit}
+                  disabled={doubaoSaving || !canSubmitDoubaoEntry}
+                >
+                  {doubaoSaving ? "写入中..." : "写入语料"}
+                </CorpusButton>
+              </CorpusActions>
+              {(doubaoError || doubaoStatus) && (
+                <CorpusStatus $error={!!doubaoError}>
+                  {doubaoError || doubaoStatus}
+                </CorpusStatus>
+              )}
+            </CorpusContainer>
+          )}
 
           {/* 输入框固定在底部，顶部内容可单独滚动 */}
           <InputContainer id="hero-input">
