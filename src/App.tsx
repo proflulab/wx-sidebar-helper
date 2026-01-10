@@ -1036,8 +1036,6 @@ function App() {
           }
           clearTimeout(timeoutId);
         } else {
-          void requestCozeSuggestions(buildShortPrompt(q));
-
           const shortPrompt = buildDoubaoShortPrompt(q);
           const shortStream = await streamDoubaoQuestion(shortPrompt);
           let shortStarted = false;
