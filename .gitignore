@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .env
+src/assets/resources/chat-input.md
 
 # Editor directories and files
 .vscode/*
