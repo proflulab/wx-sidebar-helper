@@ -2,13 +2,14 @@ import { useState, useRef, useEffect, Fragment } from "react";
 import loadingIconUrl from "./assets/loading.png";
 import type { KeyboardEvent, ChangeEvent, SyntheticEvent } from "react";
 import styled, { keyframes } from "styled-components";
-import { CopyOutlined, ReloadOutlined } from "@ant-design/icons";
+import { CopyOutlined, ReloadOutlined, DeleteOutlined, SearchOutlined } from "@ant-design/icons";
 import { streamQuestion as streamDoubaoQuestion } from "./client_doubao";
 import { buildMeetingNotice } from "./meetingNotice";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import doubaoCorpus from "./assets/resources/doubao-corpus.md?raw";
+import { useChatHistory } from "./hooks/useChatHistory";
 
 // 样式组件
 const Container = styled.div`
@@ -589,46 +590,263 @@ const CorpusStatus = styled.div<{ $error?: boolean }>`
 
 // 历史记录样式
 const HistoryContainer = styled.div`
-  background: white;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const HistoryHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 4px;
 `;
 
 const HistoryTitle = styled.div`
   font-size: 14px;
-  color: #666;
-  margin-bottom: 8px;
+  font-weight: 600;
+  color: #3b4a59;
+`;
+
+const ClearButton = styled.button`
+  border: none;
+  background: transparent;
+  color: #8a9aa9;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #f4f7fb;
+    color: #d14343;
+  }
+`;
+
+const HistoryFilters = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+`;
+
+const SearchBox = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+  color: #333;
+  transition: all 0.2s ease;
+
+  &::placeholder {
+    color: #8a9aa9;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #1890ff;
+    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+  }
+`;
+
+const SearchIcon = styled(SearchOutlined)`
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  color: #8a9aa9;
+  pointer-events: none;
+`;
+
+const TimeFilterButtons = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+const TimeFilterButton = styled.button<{ $active?: boolean }>`
+  flex: 1;
+  border: 1px solid ${({ $active }) => ($active ? "#1890ff" : "#e6e6e6")};
+  background: ${({ $active }) => ($active ? "#e6f4ff" : "white")};
+  color: ${({ $active }) => ($active ? "#1890ff" : "#5b6b7a")};
+  font-size: 12px;
+  font-weight: ${({ $active }) => ($active ? 600 : 400)};
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #1890ff;
+    background: ${({ $active }) => ($active ? "#e6f4ff" : "#f5f8fc")};
+  }
+`;
+
+const HistoryListContainer = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-right: -4px;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #999;
+  }
 `;
 
 const HistoryList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 `;
 
 const HistoryItem = styled.div`
+  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+  border: 1px solid #e8eef7;
+  border-left: 3px solid #0b57d0;
+  border-radius: 10px;
+  padding: 12px;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(11, 87, 208, 0.05);
+  cursor: pointer;
+
+  &:hover {
+    border-color: #1890ff;
+    box-shadow: 0 4px 12px rgba(11, 87, 208, 0.15);
+    transform: translateY(-1px);
+    background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+  }
+
+  &:focus {
+    outline: 2px solid #1890ff;
+    outline-offset: 2px;
+  }
+`;
+
+const HistoryItemHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+`;
+
+const HistoryQuestion = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.5;
+  flex: 1;
+  word-break: break-word;
+  transition: color 0.2s ease;
+`;
+
+const HistoryActions = styled.div`
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+`;
+
+const HistoryActionButton = styled.button`
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
-  background: #fafafa;
-  border: 1px solid #eeeeee;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: #1f2937;
-  cursor: pointer;
+  justify-content: center;
+  color: #8a9aa9;
   transition: all 0.2s ease;
 
   &:hover {
-    background: #f5f8fc;
-    transform: translateY(-1px);
+    background: #f4f7fb;
+    color: #5b6b7a;
   }
+
+  &.delete:hover {
+    color: #d14343;
+    background: #fff1f0;
+  }
+`;
+
+const HistoryAnswers = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const HistoryAnswerPreview = styled.div`
+  font-size: 12px;
+  color: #5b6b7a;
+  line-height: 1.6;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #eef2f6;
+  max-height: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  transition: all 0.2s ease;
+`;
+
+const HistoryTimestamp = styled.div`
+  font-size: 11px;
+  color: #8a9aa9;
+  margin-top: 6px;
 `;
 
 const HistoryEmpty = styled.div`
   font-size: 13px;
   color: #8a9aa9;
+  text-align: center;
+  padding: 40px 20px;
+`;
+
+const HistoryLoading = styled.div`
+  font-size: 13px;
+  color: #8a9aa9;
+  text-align: center;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+`;
+
+const HistoryError = styled.div`
+  font-size: 13px;
+  color: #d14343;
+  text-align: center;
+  padding: 20px;
+  background: #fff1f0;
+  border-radius: 8px;
+  margin: 0 4px;
 `;
 
 // 构建两种提示语
@@ -677,7 +895,24 @@ function App() {
   const [doubaoSaving, setDoubaoSaving] = useState<boolean>(false);
   const [doubaoStatus, setDoubaoStatus] = useState<string>("");
   const [doubaoError, setDoubaoError] = useState<string>("");
-  const [history, setHistory] = useState<string[]>([]);
+  
+  // 使用 IndexedDB Hook 管理历史记录
+  const { 
+    history, 
+    isLoading: historyLoading,
+    error: historyError,
+    addHistoryItem, 
+    deleteHistoryItem, 
+    clearHistory,
+    searchAndFilter,
+    resetFilter,
+  } = useChatHistory();
+  
+  // 历史记录筛选状态
+  const [historySearchQuery, setHistorySearchQuery] = useState<string>("");
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   const [, setHasConfirmed] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingFirst, setIsLoadingFirst] = useState<boolean>(false);
@@ -710,15 +945,72 @@ function App() {
     adjustTextareaHeight(textareaRef.current);
   }, [question]);
 
+  // 处理历史记录搜索
+  const handleHistorySearch = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setHistorySearchQuery(value);
+    
+    // 防抖搜索
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+    
+    searchTimerRef.current = setTimeout(() => {
+      searchAndFilter(value, historyTimeFilter);
+    }, 300);
+  };
+
+  // 处理时间筛选
+  const handleTimeFilter = (filter: "all" | "today" | "week" | "month") => {
+    setHistoryTimeFilter(filter);
+    searchAndFilter(historySearchQuery, filter);
+  };
+
+  // 格式化时间戳
+  const formatTimestamp = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "刚刚";
+    if (minutes < 60) return `${minutes}分钟前`;
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 7) return `${days}天前`;
+    
+    return date.toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // 从历史记录加载问题和回答
+  const loadHistoryItem = (id: string, e?: SyntheticEvent): void => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const item = history.find((h) => h.id === id);
+    if (item) {
+      setQuestion(item.question);
+      setAnswers(item.answers);
+      setActiveTab("Chat");
+      // 使用 setTimeout 确保标签页切换完成后再聚焦
+      setTimeout(() => {
+        focusHeroInput();
+      }, 100);
+    }
+  };
+
   const handleConfirm = async (): Promise<void> => {
     if (question.trim() && !isLoading) {
-      // 发送前把问题缓存到历史（去重，最多10条）
       const q = question.trim();
       queueChatSave(question);
-      setHistory((prev) => {
-        const next = [q, ...prev.filter((it) => it !== q)];
-        return next.slice(0, 10);
-      });
       setQuestion("");
       setIsLoading(true);
       setIsLoadingFirst(true);
@@ -726,18 +1018,22 @@ function App() {
       // 新问题开始时清空旧内容
       setAnswers([]);
 
-      // 每条 completed 消息独立展示，不再使用占位拼接
+      // 用于收集所有回答
+      const collectedAnswers: string[] = [];
 
       try {
         const shortPrompt = buildDoubaoShortPrompt(q);
         const shortStream = await streamDoubaoQuestion(shortPrompt);
         let shortStarted = false;
         let shortHasChunk = false;
+        let shortAnswer = "";
 
         // 超时保护：若 25s 内无片段到达，提示失败
         const shortTimeoutId = setTimeout(() => {
           if (!shortHasChunk) {
-            setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
+            const errorMsg = "Timeout: no response from bot";
+            setAnswers((prev) => [...prev, errorMsg]);
+            collectedAnswers.push(errorMsg);
             setIsLoading(false);
           }
         }, 25000);
@@ -745,6 +1041,7 @@ function App() {
         for await (const chunk of shortStream) {
           if (!chunk) continue;
           shortHasChunk = true;
+          shortAnswer += chunk;
           if (!shortStarted) {
             shortStarted = true;
             setIsLoadingFirst(false);
@@ -760,16 +1057,22 @@ function App() {
         }
         clearTimeout(shortTimeoutId);
         setIsLoadingFirst(false);
+        if (shortAnswer) {
+          collectedAnswers.push(shortAnswer);
+        }
 
         setIsLoadingSecond(true);
         const longPrompt = buildDoubaoLongPrompt(q);
         const longStream = await streamDoubaoQuestion(longPrompt);
         let longStarted = false;
         let longHasChunk = false;
+        let longAnswer = "";
 
         const longTimeoutId = setTimeout(() => {
           if (!longHasChunk) {
-            setAnswers((prev) => [...prev, "Timeout: no response from bot"]);
+            const errorMsg = "Timeout: no response from bot";
+            setAnswers((prev) => [...prev, errorMsg]);
+            collectedAnswers.push(errorMsg);
             setIsLoading(false);
           }
         }, 25000);
@@ -777,6 +1080,7 @@ function App() {
         for await (const chunk of longStream) {
           if (!chunk) continue;
           longHasChunk = true;
+          longAnswer += chunk;
           if (!longStarted) {
             longStarted = true;
             setIsLoadingSecond(false);
@@ -792,10 +1096,22 @@ function App() {
         }
         clearTimeout(longTimeoutId);
         setIsLoadingSecond(false);
+        if (longAnswer) {
+          collectedAnswers.push(longAnswer);
+        }
+
+        // 保存到 IndexedDB
+        if (collectedAnswers.length > 0) {
+          await addHistoryItem(q, collectedAnswers);
+        }
       } catch (error) {
         const detail = getErrorMessage(error);
         console.error("Error calling chat API:", detail);
-        setAnswers((prev) => [...prev, "Error: Failed to get response from bot"]);
+        const errorMsg = "Error: Failed to get response from bot";
+        setAnswers((prev) => [...prev, errorMsg]);
+        collectedAnswers.push(errorMsg);
+        // 即使出错也保存到历史记录
+        await addHistoryItem(q, collectedAnswers);
       } finally {
         setHasConfirmed(true);
         setIsLoading(false);
@@ -835,9 +1151,9 @@ function App() {
   const queueChatSave = (text: string): void => {
     if (!text.trim()) return;
     if (chatSaveTimerRef.current) {
-      window.clearTimeout(chatSaveTimerRef.current);
+      clearTimeout(chatSaveTimerRef.current);
     }
-    chatSaveTimerRef.current = window.setTimeout(() => {
+    chatSaveTimerRef.current = setTimeout(() => {
       chatSaveTimerRef.current = null;
       void saveChatInput(text);
     }, 400);
@@ -950,9 +1266,9 @@ function App() {
 
   const queueMeetingBuild = (form: MeetingFormState): void => {
     if (meetingBuildTimerRef.current) {
-      window.clearTimeout(meetingBuildTimerRef.current);
+      clearTimeout(meetingBuildTimerRef.current);
     }
-    meetingBuildTimerRef.current = window.setTimeout(() => {
+    meetingBuildTimerRef.current = setTimeout(() => {
       meetingBuildTimerRef.current = null;
       buildMeetingNoticeFromForm(form, true);
     }, 400);
@@ -1073,34 +1389,117 @@ function App() {
       </TopBar>
       {activeTab === "History" ? (
         <HistoryContainer>
-          <HistoryTitle>History</HistoryTitle>
-          {history.length === 0 ? (
-            <HistoryEmpty>暂无历史记录</HistoryEmpty>
+          <HistoryHeader>
+            <HistoryTitle>对话历史</HistoryTitle>
+            {history.length > 0 && (
+              <ClearButton onClick={clearHistory}>清空全部</ClearButton>
+            )}
+          </HistoryHeader>
+
+          <HistoryFilters>
+            <SearchBox>
+              <SearchIcon />
+              <SearchInput
+                type="text"
+                placeholder="搜索问题..."
+                value={historySearchQuery}
+                onChange={handleHistorySearch}
+              />
+            </SearchBox>
+            <TimeFilterButtons>
+              <TimeFilterButton
+                $active={historyTimeFilter === "all"}
+                onClick={() => handleTimeFilter("all")}
+              >
+                全部
+              </TimeFilterButton>
+              <TimeFilterButton
+                $active={historyTimeFilter === "today"}
+                onClick={() => handleTimeFilter("today")}
+              >
+                今天
+              </TimeFilterButton>
+              <TimeFilterButton
+                $active={historyTimeFilter === "week"}
+                onClick={() => handleTimeFilter("week")}
+              >
+                本周
+              </TimeFilterButton>
+              <TimeFilterButton
+                $active={historyTimeFilter === "month"}
+                onClick={() => handleTimeFilter("month")}
+              >
+                本月
+              </TimeFilterButton>
+            </TimeFilterButtons>
+          </HistoryFilters>
+
+          {historyLoading ? (
+            <HistoryLoading>
+              <LoadingIcon src={loadingIconUrl} alt="loading" />
+              <span>加载中...</span>
+            </HistoryLoading>
+          ) : historyError ? (
+            <HistoryError>{historyError}</HistoryError>
+          ) : history.length === 0 ? (
+            <HistoryEmpty>
+              {historySearchQuery || historyTimeFilter !== "all"
+                ? "没有找到匹配的记录"
+                : "暂无历史记录"}
+            </HistoryEmpty>
           ) : (
-            <HistoryList>
-              {history.map((h, idx) => (
-                <HistoryItem
-                  key={idx}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    setQuestion(h);
-                    setActiveTab("Chat");
-                    focusHeroInput(e as any);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setQuestion(h);
-                      setActiveTab("Chat");
-                      focusHeroInput(e as any);
-                    }
-                  }}
-                >
-                  {h}
-                </HistoryItem>
-              ))}
-            </HistoryList>
+            <HistoryListContainer>
+              <HistoryList>
+                {history.map((item) => (
+                  <HistoryItem
+                    key={item.id}
+                    onClick={(e) => loadHistoryItem(item.id, e)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        loadHistoryItem(item.id);
+                      }
+                    }}
+                  >
+                    <HistoryItemHeader>
+                      <HistoryQuestion>{item.question}</HistoryQuestion>
+                      <HistoryActions>
+                        <HistoryActionButton
+                          className="delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteHistoryItem(item.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              deleteHistoryItem(item.id);
+                            }
+                          }}
+                          title="删除"
+                          tabIndex={0}
+                        >
+                          <DeleteOutlined style={{ fontSize: 14 }} />
+                        </HistoryActionButton>
+                      </HistoryActions>
+                    </HistoryItemHeader>
+                    <HistoryAnswers>
+                      {item.answers.map((answer, idx) => (
+                        <HistoryAnswerPreview key={idx}>
+                          {answer}
+                        </HistoryAnswerPreview>
+                      ))}
+                    </HistoryAnswers>
+                    <HistoryTimestamp>
+                      {formatTimestamp(item.timestamp)}
+                    </HistoryTimestamp>
+                  </HistoryItem>
+                ))}
+              </HistoryList>
+            </HistoryListContainer>
           )}
         </HistoryContainer>
       ) : activeTab === "Meeting" ? (
